@@ -23,19 +23,13 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   useEffect(() => {
-    try {
-      const storedTheme = localStorage.getItem('pims-theme') as Theme | null;
-      const storedLogo = localStorage.getItem('pims-yin-logo');
-      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const initialTheme = storedTheme || (prefersDark ? 'dark' : 'light');
-      
-      setSettings({
-          theme: initialTheme,
-          yinLogo: storedLogo
-      });
-    } catch (error) {
-        console.error("Could not access localStorage. Settings will not be persisted.", error);
-    }
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = prefersDark ? 'dark' : 'light';
+    
+    setSettings(s => ({
+        ...s,
+        theme: initialTheme,
+    }));
   }, []);
 
   useEffect(() => {
@@ -44,19 +38,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     } else {
       document.documentElement.classList.remove('dark');
     }
-
-    try {
-        localStorage.setItem('pims-theme', settings.theme);
-        
-        if (settings.yinLogo) {
-          localStorage.setItem('pims-yin-logo', settings.yinLogo);
-        } else {
-          localStorage.removeItem('pims-yin-logo');
-        }
-    } catch (error) {
-        console.error("Could not access localStorage. Settings will not be persisted.", error);
-    }
-  }, [settings]);
+  }, [settings.theme]);
 
   const toggleTheme = useCallback(() => {
     setSettings(s => ({...s, theme: s.theme === 'light' ? 'dark' : 'light'}));

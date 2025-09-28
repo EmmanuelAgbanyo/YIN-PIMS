@@ -53,6 +53,7 @@ export interface Event {
 }
 
 export interface Participation {
+  id?: UUID; // To hold the firebase key
   participantId: UUID;
   eventId: UUID;
 }

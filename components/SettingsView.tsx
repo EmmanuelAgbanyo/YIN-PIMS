@@ -13,7 +13,7 @@ import { useAppSettings } from '../hooks/useAppSettings';
 const ASSIGNABLE_ROLES: UserRole[] = ['Admin', 'Organizer', 'Viewer'];
 
 interface UserFormProps {
-  onSubmit: (formData: { email: string; password: string; role: string; }) => void;
+  onSubmit: (formData: { email: string; password: string; role: string; }) => Promise<void>;
   initialData?: User | null;
   onClose: () => void;
 }
@@ -30,12 +30,12 @@ const UserForm: React.FC<UserFormProps> = ({ onSubmit, initialData, onClose }) =
     setFormData(prev => ({ ...prev, [name]: value as UserRole }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!initialData && !formData.password) {
       return; // Should be caught by 'required' attribute
     }
-    onSubmit(formData);
+    await onSubmit(formData);
     onClose();
   };
 
@@ -176,17 +176,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, 
     setIsConfirmDeleteOpen(true);
   };
   
-  const handleFormSubmit = (formData: { email: string; password: string; role: string; }) => {
+  const handleFormSubmit = async (formData: { email: string; password: string; role: string; }) => {
     if (editingUser) {
       const updatedData: User = {
         ...editingUser,
         role: formData.role as UserRole,
         password: formData.password ? formData.password : editingUser.password,
       };
-      updateUser(updatedData);
+      await updateUser(updatedData);
       addToast(`User ${editingUser.email} updated successfully!`, 'success');
     } else {
-      addUser({
+      await addUser({
         email: formData.email,
         password: formData.password,
         role: formData.role as UserRole,
@@ -195,9 +195,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, 
     }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (userToDelete) {
-      deleteUser(userToDelete.id);
+      await deleteUser(userToDelete.id);
       addToast(`User "${userToDelete.email}" deleted successfully.`, 'success');
       setIsConfirmDeleteOpen(false);
       setUserToDelete(null);

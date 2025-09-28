@@ -33,7 +33,7 @@ const initialParticipantState: Omit<Participant, 'id' | 'createdAt' | 'membershi
 };
 
 const ParticipantForm: React.FC<{
-  onSubmit: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId' >) => void;
+  onSubmit: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId' >) => Promise<void>;
   initialData?: Participant | null;
   onClose: () => void;
 }> = ({ onSubmit, initialData, onClose }) => {
@@ -52,9 +52,9 @@ const ParticipantForm: React.FC<{
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    await onSubmit(formData);
     onClose();
   };
 
@@ -161,28 +161,28 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
     setIsConfirmBulkDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (participantToDelete) {
-      deleteParticipant(participantToDelete.id);
+      await deleteParticipant(participantToDelete.id);
       addToast(`Participant "${participantToDelete.name}" deleted successfully.`, 'success');
       setIsConfirmDeleteOpen(false);
       setParticipantToDelete(null);
     }
   };
 
-  const confirmBulkDelete = () => {
-    deleteMultipleParticipants(Array.from(selectedIds));
+  const confirmBulkDelete = async () => {
+    await deleteMultipleParticipants(Array.from(selectedIds));
     addToast(`${selectedIds.size} participants deleted successfully.`, 'success');
     setSelectedIds(new Set());
     setIsConfirmBulkDeleteOpen(false);
   };
 
-  const handleFormSubmit = (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => {
+  const handleFormSubmit = async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => {
     if (editingParticipant) {
-      updateParticipant({ ...editingParticipant, ...data });
+      await updateParticipant({ ...editingParticipant, ...data });
       addToast('Participant updated successfully!', 'success');
     } else {
-      addParticipant(data);
+      await addParticipant(data);
       addToast('Participant created successfully!', 'success');
     }
     setIsModalOpen(false);

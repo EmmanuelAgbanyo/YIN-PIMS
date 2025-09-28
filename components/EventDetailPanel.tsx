@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -13,7 +14,7 @@ type EventDetailPanelProps = {
   event: Event;
   participants: Participant[];
   participations: Participation[];
-  addParticipant: (participant: Omit<Participant, 'id' | 'createdAt'>) => Participant;
+  addParticipant: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => Promise<Participant>;
   addParticipation: (participantId: UUID, eventId: UUID) => Promise<boolean>;
   addMultipleParticipations: (participantIds: UUID[], eventId: UUID) => Promise<{ added: number, skipped: number }>;
   deleteParticipation: (participantId: UUID, eventId: UUID) => void;
@@ -23,16 +24,16 @@ type EventDetailPanelProps = {
 };
 
 const QuickAddParticipantForm: React.FC<{
-  onAdd: (participant: Omit<Participant, 'id' | 'createdAt'>) => void;
+  onAdd: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => Promise<void>;
 }> = ({ onAdd }) => {
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [institution, setInstitution] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !contact || !institution) return;
-    onAdd({
+    await onAdd({
       name,
       contact,
       institution,
@@ -115,23 +116,23 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, parti
     setSearchExisting('');
   };
 
-  const handleCreateAndRegister = (participantData: Omit<Participant, 'id' | 'createdAt'>) => {
-    const newParticipant = addParticipant(participantData);
+  const handleCreateAndRegister = async (participantData: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => {
+    const newParticipant = await addParticipant(participantData);
     if (newParticipant) {
-      addParticipation(newParticipant.id, event.id);
+      await addParticipation(newParticipant.id, event.id);
       addToast(`${newParticipant.name} created and registered!`, 'success');
     } else {
         addToast('Failed to create participant.', 'error');
     }
   };
   
-  const handleUnregister = (participantId: UUID, participantName: string) => {
-      deleteParticipation(participantId, event.id);
+  const handleUnregister = async (participantId: UUID, participantName: string) => {
+      await deleteParticipation(participantId, event.id);
       addToast(`${participantName} unregistered from event.`, 'success');
   };
   
-  const confirmDeleteEvent = () => {
-    deleteEvent(event.id);
+  const confirmDeleteEvent = async () => {
+    await deleteEvent(event.id);
     addToast(`Event "${event.title}" deleted.`, 'success');
     setIsConfirmDeleteOpen(false);
   };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
@@ -19,7 +20,7 @@ const initialEventState: Omit<Event, 'id' | 'year' | 'date'> & { dateStr: string
 };
 
 const EventForm: React.FC<{
-  onSubmit: (event: Omit<Event, 'id' | 'year'>) => void;
+  onSubmit: (event: Omit<Event, 'id' | 'year'>) => Promise<void>;
   initialData?: Event | null;
   onClose: () => void;
 }> = ({ onSubmit, initialData, onClose }) => {
@@ -48,10 +49,10 @@ const EventForm: React.FC<{
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { dateStr, ...rest } = formData;
-    onSubmit({ ...rest, date: new Date(dateStr) });
+    await onSubmit({ ...rest, date: new Date(dateStr) });
     onClose();
   };
 
@@ -87,19 +88,22 @@ export const EventsView: React.FC<EventsViewProps> = (props) => {
   const { events, addEvent, updateEvent, currentUserRole } = props;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(events[0] || null);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const addToast = useToast();
   
   const canCreate = currentUserRole !== 'Viewer';
 
   useEffect(() => {
+    if (!selectedEvent && events.length > 0) {
+        setSelectedEvent(events.sort((a,b) => b.date.getTime() - a.date.getTime())[0]);
+    }
+  }, [events, selectedEvent]);
+  
+  useEffect(() => {
     // If events list changes (e.g., deletion) and selected event is no longer there,
     // select the first one or null.
     if (selectedEvent && !events.find(e => e.id === selectedEvent.id)) {
-      setSelectedEvent(events[0] || null);
-    }
-    if(!selectedEvent && events.length > 0) {
-      setSelectedEvent(events[0]);
+      setSelectedEvent(events.sort((a,b) => b.date.getTime() - a.date.getTime())[0] || null);
     }
   }, [events, selectedEvent]);
   
@@ -113,12 +117,12 @@ export const EventsView: React.FC<EventsViewProps> = (props) => {
       setIsModalOpen(true);
   };
   
-  const handleFormSubmit = (data: Omit<Event, 'id' | 'year'>) => {
+  const handleFormSubmit = async (data: Omit<Event, 'id' | 'year'>) => {
     if (editingEvent) {
-      updateEvent({ ...editingEvent, ...data, year: data.date.getFullYear() });
+      await updateEvent({ ...editingEvent, ...data, year: data.date.getFullYear() });
       addToast('Event updated successfully!', 'success');
     } else {
-      addEvent(data);
+      await addEvent(data);
       addToast('Event created successfully!', 'success');
     }
     setIsModalOpen(false);

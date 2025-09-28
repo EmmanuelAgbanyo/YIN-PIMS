@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
@@ -44,11 +45,13 @@ const RegistrationForm: React.FC<{
     <form onSubmit={handleSubmit} className="space-y-4">
       <FormGroup>
         <Select label="Participant" value={participantId} onChange={(e) => setParticipantId(e.target.value)} required >
+          <option value="" disabled>Select a participant</option>
           {sortedParticipants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
       </FormGroup>
       <FormGroup>
         <Select label="Event" value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+          <option value="" disabled>Select an event</option>
           {sortedEvents.map(e => <option key={e.id} value={e.id}>{e.title} ({e.date.toLocaleDateString()})</option>)}
         </Select>
       </FormGroup>
@@ -108,9 +111,9 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({ participan
     setIsConfirmDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (registrationToDelete) {
-      deleteParticipation(registrationToDelete.participantId, registrationToDelete.eventId);
+      await deleteParticipation(registrationToDelete.participantId, registrationToDelete.eventId);
       addToast(`Un-registered "${registrationToDelete.participantName}" successfully.`, 'success');
       setIsConfirmDeleteOpen(false);
       setRegistrationToDelete(null);
