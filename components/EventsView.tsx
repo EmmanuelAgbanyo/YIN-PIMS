@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
@@ -27,9 +26,11 @@ const EventForm: React.FC<{
   
   const getInitialState = (data: Event | null) => {
     if (!data) return initialEventState;
+    // Safely handle potentially missing date property to prevent crashes
+    const date = data.date instanceof Date ? data.date : new Date();
     return {
       title: data.title,
-      dateStr: data.date.toISOString().split('T')[0],
+      dateStr: date.toISOString().split('T')[0],
       location: data.location,
       category: data.category
     };

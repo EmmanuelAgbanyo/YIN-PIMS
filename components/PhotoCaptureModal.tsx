@@ -24,11 +24,12 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
     const [captureState, setCaptureState] = useState<CaptureState>('idle');
     const [countdown, setCountdown] = useState<number | null>(null);
     const [capturedImage, setCapturedImage] = useState<HTMLImageElement | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
     // Cropping state
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
-    const isDragging = useRef(false);
+    const isDraggingImage = useRef(false);
     const lastMousePos = useRef({ x: 0, y: 0 });
 
     const addToast = useToast();
@@ -47,6 +48,7 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
         setCapturedImage(null);
         setScale(1);
         setOffset({ x: 0, y: 0 });
+        if(fileInputRef.current) fileInputRef.current.value = "";
     }, [stopCamera]);
 
     const startCamera = useCallback(async () => {
@@ -104,7 +106,6 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
             tempCanvas.height = videoRef.current.videoHeight;
             const context = tempCanvas.getContext('2d');
             if (context) {
-                // Flip the context horizontally to counteract the CSS mirror effect
                 context.translate(tempCanvas.width, 0);
                 context.scale(-1, 1);
                 context.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
@@ -119,9 +120,8 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
             }
         }
     };
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    
+    const processFile = (file: File | null) => {
         if (file) {
             if (!file.type.startsWith('image/')) {
                 addToast('Please select an image file.', 'error');
@@ -138,6 +138,17 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
             };
             reader.readAsDataURL(file);
         }
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        processFile(event.target.files?.[0] || null);
+    };
+    
+    const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+        processFile(event.dataTransfer.files?.[0] || null);
     };
     
     // Redraw canvas on crop changes
@@ -178,17 +189,17 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
     }
     
     const handleMouseDown = (e: React.MouseEvent) => {
-        isDragging.current = true;
+        isDraggingImage.current = true;
         lastMousePos.current = { x: e.clientX, y: e.clientY };
     };
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (!isDragging.current) return;
+        if (!isDraggingImage.current) return;
         const dx = e.clientX - lastMousePos.current.x;
         const dy = e.clientY - lastMousePos.current.y;
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         setOffset(o => ({ x: o.x + dx, y: o.y + dy }));
     };
-    const handleMouseUp = () => isDragging.current = false;
+    const handleMouseUp = () => isDraggingImage.current = false;
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
         const newScale = scale - e.deltaY * 0.001;
@@ -246,10 +257,18 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
                     )}
 
                     {mode === 'upload' && captureState !== 'preview' && (
-                        <div className="text-center p-8">
-                            <p className="text-gray-400 mb-4">Select an image file from your device.</p>
-                            <Button onClick={() => fileInputRef.current?.click()}>Choose File</Button>
-                            <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} className="hidden" />
+                         <div
+                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`w-full h-full flex items-center justify-center transition-colors ${isDragging ? 'bg-primary/20' : ''}`}
+                        >
+                            <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-2xl text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                <p className="mt-2">Drag & drop an image</p>
+                                <p className="text-xs text-gray-500">or click to select a file</p>
+                            </div>
                         </div>
                     )}
 
@@ -257,6 +276,7 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({ isOpen, on
                         <p className="absolute bottom-2 text-white/80 bg-black/50 px-2 py-1 rounded-md text-xs">Scroll to zoom, drag to pan</p>
                     )}
                 </div>
+                 <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} className="hidden" />
                 
                 <div className="flex gap-4 items-center h-10">
                     {captureState === 'live' && <Button onClick={handleCountdown} disabled={!stream}>Capture Photo</Button>}

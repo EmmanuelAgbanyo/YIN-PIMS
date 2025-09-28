@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { AppView, UserRole } from '../types';
 
@@ -26,7 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, i
         { view: 'registrations', label: 'Registrations', icon: <ClipboardListIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
         { view: 'reports', label: 'Reports', icon: <ChartBarIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
         { view: 'certificates', label: 'Certificates', icon: <AcademicCapIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
-        { view: 'verification', label: 'Verify Member', icon: <QRIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
+        { view: 'verification', label: 'Verify Member', icon: <IDCardIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
         { view: 'settings', label: 'System Settings', icon: <CogIcon />, roles: ['Super Admin'] },
     ];
 
@@ -84,5 +83,5 @@ const CalendarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={ic
 const ClipboardListIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" /></svg>;
 const ChartBarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a1 1 0 001 1h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l3.293 3.293a1 1 0 001.414-1.414L13.414 12H16a1 1 0 001-1V5a1 1 0 00-1-1H3zm12 2v2h-2V5h2zM5 5h2v5H5V5zm4 0h2v3h-2V5z" clipRule="evenodd" /></svg>;
 const AcademicCapIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.042.822l-1.044 2.61a1 1 0 00.956 1.445l3.421-.855a.997.997 0 01.52.068l1.75 1.05a1 1 0 001.12.068l1.75-1.05a.997.997 0 01.52-.068l3.421.855a1 1 0 00.956-1.445l-1.044-2.61a.999.999 0 01.042-.822L17.394 6.92a1 1 0 000-1.84l-7-3zM10 8a1 1 0 100-2 1 1 0 000 2z" /><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path d="M10 15c-1.1 0-2 .9-2 2v1h4v-1c0-1.1-.9-2-2-2z" /></svg>;
-const QRIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V4h2v2H5zM3 10a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm2 2v-2h2v2H5zM10 4a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1h-2a1 1 0 01-1-1V4zm2 2V4h2v2h-2zM8 9a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1v-6a1 1 0 00-1-1H8zm6 6H9v-4h5v4zm-8-2a1 1 0 011-1h2a1 1 0 110 2H4a1 1 0 01-1-1zm14-2a1 1 0 100-2h-2a1 1 0 100 2h2z" clipRule="evenodd" /></svg>;
+const IDCardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H3zm12 2a1 1 0 100-2H5a1 1 0 000 2h10zM5 9a1 1 0 100-2h2a1 1 0 100 2H5zm10 2a1 1 0 100-2H9a1 1 0 100 2h6zM5 13a1 1 0 100-2h2a1 1 0 100 2H5zm10 0a1 1 0 100-2H9a1 1 0 100 2h6z" clipRule="evenodd" /></svg>;
 const CogIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>;

@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { db } from '../firebase';
 import { ref, onValue, set, update, remove, push } from 'firebase/database';
@@ -8,7 +7,8 @@ import type { Participant, Event, Participation, User, UUID, KPIs } from '../typ
 // --- HELPERS ---
 
 // Helper to convert Firebase object to array and parse date strings into Date objects
-const firebaseObjectToArray = (data: any, dateFields: string[] = []) => {
+// Fix: Made the function generic to ensure type safety when setting state.
+const firebaseObjectToArray = <T>(data: any, dateFields: string[] = []): T[] => {
   if (!data) return [];
   return Object.entries(data).map(([id, value]) => {
     const item: { [key: string]: any } = { ...(value as object), id };
@@ -17,7 +17,7 @@ const firebaseObjectToArray = (data: any, dateFields: string[] = []) => {
         item[field] = new Date(item[field]);
       }
     });
-    return item;
+    return item as T;
   });
 };
 
@@ -66,19 +66,23 @@ export const usePIMSData = () => {
     const usersRef = ref(db, 'users');
 
     const onParticipants = onValue(participantsRef, (snapshot) => {
-        setParticipants(firebaseObjectToArray(snapshot.val(), ['createdAt', 'lastMembershipCardGeneratedAt']));
+        // Fix: Explicitly cast the result to Participant[].
+        setParticipants(firebaseObjectToArray<Participant>(snapshot.val(), ['createdAt', 'lastMembershipCardGeneratedAt']));
     });
 
     const onEvents = onValue(eventsRef, (snapshot) => {
-        setEvents(firebaseObjectToArray(snapshot.val(), ['date']));
+        // Fix: Explicitly cast the result to Event[].
+        setEvents(firebaseObjectToArray<Event>(snapshot.val(), ['date']));
     });
 
     const onParticipations = onValue(participationsRef, (snapshot) => {
-        setParticipations(firebaseObjectToArray(snapshot.val()));
+        // Fix: Explicitly cast the result to Participation[].
+        setParticipations(firebaseObjectToArray<Participation>(snapshot.val()));
     });
 
     const onUsers = onValue(usersRef, (snapshot) => {
-        setUsers(firebaseObjectToArray(snapshot.val(), ['createdAt']));
+        // Fix: Explicitly cast the result to User[].
+        setUsers(firebaseObjectToArray<User>(snapshot.val(), ['createdAt']));
     });
 
     // --- CLEANUP LISTENERS ---
@@ -94,11 +98,14 @@ export const usePIMSData = () => {
   const addParticipant = useCallback(async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>): Promise<Participant> => {
     const newId = crypto.randomUUID();
     const createdAt = new Date();
+    // To make IDs more consistent with seed data format, generate a random 4-digit number.
+    const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+
     const newParticipant: Participant = {
       ...data,
       id: newId,
       createdAt,
-      membershipId: `YIN-${createdAt.getFullYear()}-${newId.substring(0, 4).toUpperCase()}`,
+      membershipId: `YIN-${createdAt.getFullYear()}-${randomSuffix}`,
     };
     await set(ref(db, `participants/${newId}`), prepareDataForFirebase(newParticipant, ['createdAt']));
     return newParticipant;
