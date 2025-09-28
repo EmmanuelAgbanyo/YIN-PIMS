@@ -13,12 +13,13 @@ interface SettingsViewProps {
   updateUser: (user: User) => void;
   deleteUser: (userId: UUID) => void;
   currentUser: User;
+  seedDatabase: () => Promise<boolean>;
 }
 
 const initialUserState: Omit<User, 'id' | 'createdAt'> = {
   email: '',
   password: '',
-  role: 'Admin/Staff',
+  role: 'Viewer',
 };
 
 const UserForm: React.FC<{
@@ -35,7 +36,7 @@ const UserForm: React.FC<{
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value as UserRole }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -60,7 +61,9 @@ const UserForm: React.FC<{
       </FormGroup>
       <FormGroup>
         <Select label="Role" name="role" value={formData.role} onChange={handleChange} disabled={isEditingSelf}>
-          <option value="Admin/Staff">Admin/Staff</option>
+          <option value="Viewer">Viewer</option>
+          <option value="Organizer">Organizer</option>
+          <option value="Admin">Admin</option>
           <option value="Super Admin">Super Admin</option>
         </Select>
         {isEditingSelf && <p className="text-xs text-gray-500 mt-1">You cannot change your own role.</p>}
@@ -74,11 +77,12 @@ const UserForm: React.FC<{
 };
 
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ users, addUser, updateUser, deleteUser, currentUser }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ users, addUser, updateUser, deleteUser, currentUser, seedDatabase }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
   const addToast = useToast();
   
   const sortedUsers = useMemo(() => {
@@ -121,38 +125,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, addUser, upda
     setEditingUser(null);
   };
 
+  const handleSeedDatabase = async () => {
+    const isConfirmed = window.confirm(
+      'Are you sure you want to reset and seed the database? This will overwrite ALL existing data.'
+    );
+    if (isConfirmed) {
+      setIsSeeding(true);
+      addToast('Seeding database... This may take a moment.', 'info');
+      const success = await seedDatabase();
+      if (success) {
+        addToast('Database seeded successfully! You may need to refresh to see all changes.', 'success');
+      } else {
+        addToast('Database seeding failed. Check the console for errors.', 'error');
+      }
+      setIsSeeding(false);
+    }
+  };
+
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-       <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-        <h2 className="text-xl font-semibold">User Management ({users.length})</h2>
-        <Button onClick={handleAdd}>Add New User</Button>
-      </div>
-       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Created</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {sortedUsers.map(user => (
-              <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{user.email}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'Super Admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>{user.role}</span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{user.createdAt.toLocaleDateString()}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditRequest(user)}>Edit</Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDeleteRequest(user)} disabled={user.id === currentUser.id}>Delete</Button>
-                </td>
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+          <h2 className="text-xl font-semibold">User Management ({users.length})</h2>
+          <Button onClick={handleAdd}>Add New User</Button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Created</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {sortedUsers.map(user => (
+                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{user.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'Super Admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>{user.role}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{user.createdAt.toLocaleDateString()}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleEditRequest(user)}>Edit</Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDeleteRequest(user)} disabled={user.id === currentUser.id}>Delete</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <h3 className="text-xl font-semibold border-b pb-3 mb-4">Database Management</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Reset the entire database with a predefined set of sample data. This is useful for testing or starting a fresh demo.
+          <br />
+          <strong className="text-red-500">Warning:</strong> This is a destructive action and will permanently delete all current data.
+        </p>
+        <Button variant="danger" onClick={handleSeedDatabase} disabled={isSeeding}>
+          {isSeeding ? 'Seeding...' : 'Seed Database with Sample Data'}
+        </Button>
       </div>
 
        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Create New User'}>

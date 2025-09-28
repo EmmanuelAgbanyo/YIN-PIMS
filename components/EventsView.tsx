@@ -89,6 +89,8 @@ export const EventsView: React.FC<EventsViewProps> = (props) => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(events[0] || null);
   const addToast = useToast();
+  
+  const canCreate = currentUserRole !== 'Viewer';
 
   useEffect(() => {
     // If events list changes (e.g., deletion) and selected event is no longer there,
@@ -129,10 +131,10 @@ export const EventsView: React.FC<EventsViewProps> = (props) => {
       <div className="w-full md:w-1/3 flex flex-col bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-4 p-2">
             <h2 className="text-xl font-semibold">Events ({events.length})</h2>
-            <Button onClick={handleAdd}>Create Event</Button>
+            {canCreate && <Button onClick={handleAdd}>Create Event</Button>}
         </div>
         <div className="overflow-y-auto space-y-2">
-            {events.map(event => (
+            {events.sort((a,b) => b.date.getTime() - a.date.getTime()).map(event => (
                 <div
                     key={event.id}
                     onClick={() => setSelectedEvent(event)}

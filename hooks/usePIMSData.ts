@@ -1,110 +1,305 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Participant, Event, Participation, UUID, User } from '../types';
-import { Gender as GenderEnum, Region as RegionEnum } from '../types';
+import { db } from '../firebase';
+import { ref, onValue, set, push, update, remove, query, orderByChild, equalTo, get } from 'firebase/database';
+import { seedData } from '../seedData';
 
-const createInitialParticipants = (): Participant[] => [
-    { id: '1', name: 'John Doe', gender: GenderEnum.Male, institution: 'University of Ghana', region: RegionEnum.GreaterAccra, contact: '0244123456', membershipStatus: true, certificateIssued: true, notes: 'Active member', createdAt: new Date('2023-01-15') },
-    { id: '2', name: 'Jane Smith', gender: GenderEnum.Female, institution: 'KNUST', region: RegionEnum.Ashanti, contact: '0208123456', membershipStatus: true, certificateIssued: false, notes: '', createdAt: new Date('2023-02-20') },
-    { id: '3', name: 'Kwame Nkrumah', gender: GenderEnum.Male, institution: 'University of Cape Coast', region: RegionEnum.Central, contact: '0555123456', membershipStatus: false, certificateIssued: true, notes: 'Founding member', createdAt: new Date('2022-11-10') },
-    { id: '4', name: 'Ama Ata Aidoo', gender: GenderEnum.Female, institution: 'Ashesi University', region: RegionEnum.Eastern, contact: '0277123456', membershipStatus: true, certificateIssued: false, notes: '', createdAt: new Date('2023-05-01') },
-    { id: '5', name: 'Kofi Annan', gender: GenderEnum.Male, institution: 'Accra Technical University', region: RegionEnum.GreaterAccra, contact: '0266123456', membershipStatus: true, certificateIssued: true, notes: '', createdAt: new Date('2023-03-12') },
-];
-
-const createInitialEvents = (): Event[] => [
-    { id: '101', title: 'Annual Investment Summit', date: new Date('2023-03-20'), year: 2023, location: 'Accra', category: 'Conference' },
-    { id: '102', title: 'Stock Market Workshop', date: new Date('2023-06-15'), year: 2023, location: 'Kumasi', category: 'Workshop' },
-    { id: '103', title: 'Fintech Networking Event', date: new Date('2024-01-30'), year: 2024, location: 'Accra', category: 'Networking' },
-    { id: '104', title: 'Entrepreneurship Seminar', date: new Date('2024-04-10'), year: 2024, location: 'Cape Coast', category: 'Seminar' },
-];
-
-const createInitialParticipations = (): Participation[] => [
-    { participantId: '1', eventId: '101' },
-    { participantId: '2', eventId: '101' },
-    { participantId: '1', eventId: '102' },
-    { participantId: '3', eventId: '101' },
-    { participantId: '4', eventId: '103' },
-    { participantId: '5', eventId: '103' },
-    { participantId: '1', eventId: '103' },
-    { participantId: '2', eventId: '104' },
-];
-
-const createInitialUsers = (): User[] => [
-    { id: 'su-admin-001', email: 'admin@yin.com', password: 'password123', role: 'Super Admin', createdAt: new Date() }
-];
+const firebaseObjectToArray = (snapshot: any, dateFields: string[] = []) => {
+  const data = snapshot.val();
+  if (!data) return [];
+  return Object.entries(data).map(([id, value]: [string, any]) => {
+    const item: any = { ...value, id };
+    dateFields.forEach(field => {
+        if (item[field]) {
+            item[field] = new Date(item[field]);
+        }
+    });
+    return item;
+  });
+};
 
 
 export const usePIMSData = () => {
-  const [participants, setParticipants] = useState<Participant[]>(createInitialParticipants);
-  const [events, setEvents] = useState<Event[]>(createInitialEvents);
-  const [participations, setParticipations] = useState<Participation[]>(createInitialParticipations);
-  const [users, setUsers] = useState<User[]>(createInitialUsers);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [participations, setParticipations] = useState<Participation[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const seedDatabase = useCallback(async (): Promise<boolean> => {
+    try {
+        const { users, participants, events, participations } = seedData;
+        
+        const prepareForFirebase = (items: any[], dateFields: string[] = []) => {
+            return items.reduce((acc, item) => {
+                const { id, ...data } = item;
+                const firebaseItem: any = { ...data };
+                dateFields.forEach(field => {
+                    if (firebaseItem[field] instanceof Date) {
+                        firebaseItem[field] = firebaseItem[field].toISOString();
+                    }
+                });
+                acc[id] = firebaseItem;
+                return acc;
+            }, {} as Record<string, any>);
+        };
+        
+        const participationsForDb = participations.reduce((acc, p, index) => {
+            acc[`participation_${index + 1}`] = p;
+            return acc;
+        }, {} as Record<string, any>);
+
+        const updates: Record<string, any> = {
+            users: prepareForFirebase(users, ['createdAt']),
+            participants: prepareForFirebase(participants, ['createdAt']),
+            events: prepareForFirebase(events, ['date']),
+            participations: participationsForDb,
+        };
+
+        await set(ref(db), updates);
+        
+        return true;
+    } catch (error) {
+        console.error("Database seeding failed:", error);
+        return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    const participantsRef = ref(db, 'participants');
+    const eventsRef = ref(db, 'events');
+    const participationsRef = ref(db, 'participations');
+    const usersRef = ref(db, 'users');
+
+    const fetchDataAndSeedIfNeeded = async () => {
+      try {
+        // First, check if users exist. If not, seed the database.
+        const usersSnapForCheck = await get(usersRef);
+        if (!usersSnapForCheck.exists()) {
+          console.log("No users found. Seeding database with initial data...");
+          const success = await seedDatabase();
+          if (success) {
+            console.log("Database seeded successfully.");
+          } else {
+            console.error("Automatic database seeding failed.");
+          }
+        }
+
+        // Now, proceed with fetching all data. This will get fresh data if seeding just happened.
+        const [
+          participantsSnap,
+          eventsSnap,
+          participationsSnap,
+          usersSnap
+        ] = await Promise.all([
+          get(participantsRef),
+          get(eventsRef),
+          get(participationsRef),
+          get(usersRef)
+        ]);
+
+        // Set initial state from the snapshots
+        setParticipants(firebaseObjectToArray(participantsSnap, ['createdAt']));
+        setEvents(firebaseObjectToArray(eventsSnap, ['date']));
+        setParticipations(participationsSnap.exists() ? Object.values(participationsSnap.val()) : []);
+        setUsers(firebaseObjectToArray(usersSnap, ['createdAt']));
+        
+      } catch (error) {
+        console.error("Failed to fetch initial PIMS data:", error);
+      } finally {
+        // Once initial data is fetched (or fails), stop loading
+        setIsLoading(false);
+      }
+    };
+
+    fetchDataAndSeedIfNeeded();
+
+    // Now, set up the real-time listeners for updates after the initial load.
+    const listeners = [
+      onValue(participantsRef, (snapshot) => {
+        setParticipants(firebaseObjectToArray(snapshot, ['createdAt']));
+      }),
+      onValue(eventsRef, (snapshot) => {
+        setEvents(firebaseObjectToArray(snapshot, ['date']));
+      }),
+      onValue(participationsRef, (snapshot) => {
+        setParticipations(snapshot.exists() ? Object.values(snapshot.val()) : []);
+      }),
+      onValue(usersRef, (snapshot) => {
+        setUsers(firebaseObjectToArray(snapshot, ['createdAt']));
+      }),
+    ];
+
+    // Cleanup function to detach listeners when the component unmounts
+    return () => {
+      listeners.forEach(unsubscribe => unsubscribe());
+    };
+  }, [seedDatabase]);
 
   const addParticipant = useCallback((participantData: Omit<Participant, 'id' | 'createdAt'>): Participant => {
-    const newParticipant: Participant = {
+    const participantsListRef = ref(db, 'participants');
+    const newParticipantRef = push(participantsListRef);
+    const newParticipantData = {
       ...participantData,
-      id: crypto.randomUUID(),
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
-    setParticipants(prev => [...prev, newParticipant]);
-    return newParticipant;
+    set(newParticipantRef, newParticipantData);
+    return {
+        ...participantData,
+        id: newParticipantRef.key!,
+        createdAt: new Date(newParticipantData.createdAt),
+    };
   }, []);
 
   const updateParticipant = useCallback((updatedParticipant: Participant) => {
-    setParticipants(prev => prev.map(p => p.id === updatedParticipant.id ? updatedParticipant : p));
+    const { id, ...data } = updatedParticipant;
+    const participantRef = ref(db, `participants/${id}`);
+    update(participantRef, {
+        ...data,
+        createdAt: data.createdAt.toISOString(),
+    });
   }, []);
 
-  const deleteParticipant = useCallback((participantId: UUID) => {
-    setParticipants(prev => prev.filter(p => p.id !== participantId));
-    setParticipations(prev => prev.filter(p => p.participantId !== participantId));
+  const deleteParticipant = useCallback(async (participantId: UUID) => {
+    await remove(ref(db, `participants/${participantId}`));
+    const participationsQuery = query(ref(db, 'participations'), orderByChild('participantId'), equalTo(participantId));
+    const snapshot = await get(participationsQuery);
+    if (snapshot.exists()) {
+        const updates: Record<string, null> = {};
+        snapshot.forEach(child => {
+            updates[`/participations/${child.key}`] = null;
+        });
+        await update(ref(db), updates);
+    }
+  }, []);
+
+  const deleteMultipleParticipants = useCallback(async (participantIds: UUID[]) => {
+    const updates: Record<string, null> = {};
+    participantIds.forEach(id => {
+        updates[`/participants/${id}`] = null;
+    });
+    
+    // Find all participations related to the deleted participants and mark them for deletion.
+    const participationsRef = ref(db, 'participations');
+    const snapshot = await get(participationsRef);
+    if (snapshot.exists()) {
+        snapshot.forEach(child => {
+            const participation = child.val();
+            if (participantIds.includes(participation.participantId)) {
+                updates[`/participations/${child.key}`] = null;
+            }
+        });
+    }
+
+    await update(ref(db), updates);
   }, []);
 
   const addEvent = useCallback((eventData: Omit<Event, 'id' | 'year'>) => {
-    const newEvent: Event = {
-      ...eventData,
-      id: crypto.randomUUID(),
-      year: eventData.date.getFullYear(),
-    };
-    setEvents(prev => [...prev, newEvent]);
+    const eventListRef = ref(db, 'events');
+    const newEventRef = push(eventListRef);
+    set(newEventRef, {
+        ...eventData,
+        date: eventData.date.toISOString(),
+        year: eventData.date.getFullYear(),
+    });
   }, []);
 
   const updateEvent = useCallback((updatedEvent: Event) => {
-    setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+    const { id, ...data } = updatedEvent;
+    const eventRef = ref(db, `events/${id}`);
+    update(eventRef, {
+        ...data,
+        date: data.date.toISOString(),
+        year: data.date.getFullYear(),
+    });
   }, []);
   
-  const deleteEvent = useCallback((eventId: UUID) => {
-    setEvents(prev => prev.filter(e => e.id !== eventId));
-    setParticipations(prev => prev.filter(p => p.eventId !== eventId));
+  const deleteEvent = useCallback(async (eventId: UUID) => {
+    await remove(ref(db, `events/${eventId}`));
+    const participationsQuery = query(ref(db, 'participations'), orderByChild('eventId'), equalTo(eventId));
+    const snapshot = await get(participationsQuery);
+    if (snapshot.exists()) {
+        const updates: Record<string, null> = {};
+        snapshot.forEach(child => {
+            updates[`/participations/${child.key}`] = null;
+        });
+        await update(ref(db), updates);
+    }
   }, []);
 
-  const addParticipation = useCallback((participantId: UUID, eventId: UUID): boolean => {
-    const exists = participations.some(p => p.participantId === participantId && p.eventId === eventId);
-    if (exists) {
-      return false;
-    }
-    setParticipations(prev => [...prev, { participantId, eventId }]);
-    return true;
+  const addParticipation = useCallback(async (participantId: UUID, eventId: UUID): Promise<boolean> => {
+      const existing = participations.some(p => p.participantId === participantId && p.eventId === eventId);
+      if (existing) {
+          return false;
+      }
+      const participationListRef = ref(db, 'participations');
+      const newParticipationRef = push(participationListRef);
+      await set(newParticipationRef, { participantId, eventId });
+      return true;
   }, [participations]);
 
-  const deleteParticipation = useCallback((participantId: UUID, eventId: UUID) => {
-    setParticipations(prev => prev.filter(p => !(p.participantId === participantId && p.eventId === eventId)));
+  const addMultipleParticipations = useCallback(async (participantIds: UUID[], eventId: UUID): Promise<{ added: number, skipped: number }> => {
+    let addedCount = 0;
+    const updates: Record<string, { participantId: UUID; eventId: UUID }> = {};
+    const participationsRef = ref(db, 'participations');
+
+    participantIds.forEach(participantId => {
+      const alreadyExists = participations.some(p => p.participantId === participantId && p.eventId === eventId);
+      if (!alreadyExists) {
+        const newKey = push(participationsRef).key;
+        if (newKey) {
+          updates[`/participations/${newKey}`] = { participantId, eventId };
+          addedCount++;
+        }
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      await update(ref(db), updates);
+    }
+
+    return { added: addedCount, skipped: participantIds.length - addedCount };
+  }, [participations]);
+
+  const deleteParticipation = useCallback(async (participantId: UUID, eventId: UUID) => {
+    const participationsRef = ref(db, 'participations');
+    const snapshot = await get(participationsRef);
+    if(snapshot.exists()) {
+        snapshot.forEach(childSnapshot => {
+            const participation = childSnapshot.val();
+            if (participation.participantId === participantId && participation.eventId === eventId) {
+                remove(ref(db, `participations/${childSnapshot.key}`));
+            }
+        });
+    }
   }, []);
   
   const addUser = useCallback((userData: Omit<User, 'id' | 'createdAt'>): User => {
-    const newUser: User = {
-      ...userData,
-      id: crypto.randomUUID(),
-      createdAt: new Date(),
+    const userListRef = ref(db, 'users');
+    const newUserRef = push(userListRef);
+    const newUserData = {
+        ...userData,
+        createdAt: new Date().toISOString(),
     };
-    setUsers(prev => [...prev, newUser]);
-    return newUser;
+    set(newUserRef, newUserData);
+    return {
+        ...newUserData,
+        id: newUserRef.key!,
+        createdAt: new Date(newUserData.createdAt),
+    };
   }, []);
 
   const updateUser = useCallback((updatedUser: User) => {
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    const { id, ...data } = updatedUser;
+    const userRef = ref(db, `users/${id}`);
+    update(userRef, {
+        ...data,
+        createdAt: data.createdAt.toISOString(),
+    });
   }, []);
 
   const deleteUser = useCallback((userId: UUID) => {
-    setUsers(prev => prev.filter(u => u.id !== userId));
+    remove(ref(db, `users/${userId}`));
   }, []);
 
   const kpis = useMemo(() => {
@@ -127,17 +322,21 @@ export const usePIMSData = () => {
     addParticipant,
     updateParticipant,
     deleteParticipant,
+    deleteMultipleParticipants,
     events,
     addEvent,
     updateEvent,
     deleteEvent,
     participations,
     addParticipation,
+    addMultipleParticipations,
     deleteParticipation,
     users,
     addUser,
     updateUser,
     deleteUser,
-    kpis
+    kpis,
+    isLoading,
+    seedDatabase,
   };
 };

@@ -18,7 +18,7 @@ interface RegistrationWithDetails extends Participation {
 const RegistrationForm: React.FC<{
   participants: Participant[];
   events: Event[];
-  onSubmit: (participantId: UUID, eventId: UUID) => boolean;
+  onSubmit: (participantId: UUID, eventId: UUID) => Promise<boolean>;
   onClose: () => void;
 }> = ({ participants, events, onSubmit, onClose }) => {
   const [participantId, setParticipantId] = useState<UUID>(participants[0]?.id || '');
@@ -28,13 +28,13 @@ const RegistrationForm: React.FC<{
   const sortedParticipants = useMemo(() => [...participants].sort((a,b) => a.name.localeCompare(b.name)), [participants]);
   const sortedEvents = useMemo(() => [...events].sort((a,b) => b.date.getTime() - a.date.getTime()), [events]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!participantId || !eventId) {
         addToast('Please select a participant and an event.', 'error');
         return;
     }
-    const success = onSubmit(participantId, eventId);
+    const success = await onSubmit(participantId, eventId);
     if(success) {
         onClose();
     }
@@ -67,6 +67,8 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({ participan
   const [searchTerm, setSearchTerm] = useState('');
   const addToast = useToast();
 
+  const canManage = useMemo(() => ['Super Admin', 'Admin', 'Organizer'].includes(currentUserRole), [currentUserRole]);
+
   const registrationsWithDetails = useMemo(() => {
     return participations
       .map(p => {
@@ -89,8 +91,8 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({ participan
       );
   }, [registrationsWithDetails, searchTerm]);
 
-  const handleFormSubmit = (participantId: UUID, eventId: UUID) => {
-    const success = addParticipation(participantId, eventId);
+  const handleFormSubmit = async (participantId: UUID, eventId: UUID) => {
+    const success = await addParticipation(participantId, eventId);
     if(success) {
       const participantName = participants.find(p => p.id === participantId)?.name;
       addToast(`Registered ${participantName} successfully!`, 'success');
@@ -115,15 +117,13 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({ participan
     }
   };
 
-  const isSuperAdmin = currentUserRole === 'Super Admin';
-
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
         <h2 className="text-xl font-semibold">Event Registrations ({filteredRegistrations.length})</h2>
         <div className="flex items-center gap-2">
             <input type="text" placeholder="Search participant or event..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="block w-full sm:w-64 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-            <Button onClick={() => setIsModalOpen(true)}>Add Registration</Button>
+            {canManage && <Button onClick={() => setIsModalOpen(true)}>Add Registration</Button>}
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -143,7 +143,11 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({ participan
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{r.eventName}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{r.eventDate?.toLocaleDateString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  {isSuperAdmin && <Button variant="danger" onClick={() => handleDeleteRequest(r)}>Delete</Button>}
+                  {canManage ? (
+                     <Button variant="danger" onClick={() => handleDeleteRequest(r)}>Delete</Button>
+                  ) : (
+                     <span className="text-xs text-gray-400">No actions</span>
+                  )}
                 </td>
               </tr>
             )) : (

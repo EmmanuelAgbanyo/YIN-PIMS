@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Participant, Event, Participation } from '../types';
+// Fix: Added UUID to import to be used for explicit map typing.
+import type { Participant, Event, Participation, UUID } from '../types';
 import { Button } from './ui/Button';
 import { exportToCsv } from '../utils/csv';
 import { useToast } from '../hooks/useToast';
@@ -68,8 +69,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ participants, events, 
   };
 
   const reportData = useMemo(() => {
-    const participantMap = new Map(participants.map(p => [p.id, p]));
-    const eventMap = new Map(events.map(e => [e.id, e]));
+    // Fix: Explicitly typing maps to fix type inference issues within filter/map callbacks.
+    const participantMap: Map<UUID, Participant> = new Map(participants.map(p => [p.id, p]));
+    const eventMap: Map<UUID, Event> = new Map(events.map(e => [e.id, e]));
 
     return participations
       .filter(p => {

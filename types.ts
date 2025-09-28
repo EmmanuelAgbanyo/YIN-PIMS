@@ -50,9 +50,9 @@ export interface User {
   createdAt: Date;
 }
 
-export type View = 'dashboard' | 'participants' | 'events' | 'registrations' | 'reports' | 'certificates' | 'settings';
+export type View = 'dashboard' | 'participants' | 'events' | 'registrations' | 'reports' | 'certificates' | 'settings' | 'profile';
 
-export type UserRole = 'Super Admin' | 'Admin/Staff';
+export type UserRole = 'Super Admin' | 'Admin' | 'Organizer' | 'Viewer';
 
 export type ToastType = 'success' | 'error' | 'info';
 

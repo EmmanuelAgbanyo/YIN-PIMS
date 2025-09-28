@@ -7,13 +7,15 @@ import { Gender, Region } from '../types';
 import { INSTITUTIONS } from '../constants';
 import { Input } from './ui/Input';
 import { FormGroup } from './ui/FormGroup';
+import { Checkbox } from './ui/Checkbox';
 
 type EventDetailPanelProps = {
   event: Event;
   participants: Participant[];
   participations: Participation[];
   addParticipant: (participant: Omit<Participant, 'id' | 'createdAt'>) => Participant;
-  addParticipation: (participantId: UUID, eventId: UUID) => boolean;
+  addParticipation: (participantId: UUID, eventId: UUID) => Promise<boolean>;
+  addMultipleParticipations: (participantIds: UUID[], eventId: UUID) => Promise<{ added: number, skipped: number }>;
   deleteParticipation: (participantId: UUID, eventId: UUID) => void;
   deleteEvent: (eventId: UUID) => void;
   onEdit: (event: Event) => void;
@@ -65,14 +67,15 @@ const QuickAddParticipantForm: React.FC<{
 };
 
 
-export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, participants, participations, addParticipant, addParticipation, deleteParticipation, deleteEvent, onEdit, currentUserRole }) => {
+export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, participants, participations, addParticipant, addParticipation, addMultipleParticipations, deleteParticipation, deleteEvent, onEdit, currentUserRole }) => {
   const [activeTab, setActiveTab] = useState<'register' | 'create'>('register');
   const [searchExisting, setSearchExisting] = useState('');
   const [searchAttendees, setSearchAttendees] = useState('');
+  const [selectedToRegister, setSelectedToRegister] = useState<Set<UUID>>(new Set());
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const addToast = useToast();
 
-  const isSuperAdmin = currentUserRole === 'Super Admin';
+  const canManageEvent = useMemo(() => ['Super Admin', 'Admin', 'Organizer'].includes(currentUserRole), [currentUserRole]);
 
   const attendees = useMemo(() => {
     const attendeeIds = new Set(participations.filter(p => p.eventId === event.id).map(p => p.participantId));
@@ -85,22 +88,31 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, parti
     const attendeeIds = new Set(attendees.map(a => a.id));
     return participants
       .filter(p => !attendeeIds.has(p.id) && p.name.toLowerCase().includes(searchExisting.toLowerCase()))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, 10); // Limit results for performance
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [participants, attendees, searchExisting]);
 
   const filteredAttendees = useMemo(() => {
     return attendees.filter(a => a.name.toLowerCase().includes(searchAttendees.toLowerCase()));
   }, [attendees, searchAttendees]);
 
-  const handleRegister = (participantId: UUID) => {
-    const success = addParticipation(participantId, event.id);
-    if (success) {
-      addToast('Participant registered!', 'success');
-      setSearchExisting('');
-    } else {
-      addToast('Already registered.', 'error');
-    }
+  const handleSelectForRegistration = (participantId: UUID, isSelected: boolean) => {
+    setSelectedToRegister(prev => {
+      const newSet = new Set(prev);
+      if (isSelected) {
+        newSet.add(participantId);
+      } else {
+        newSet.delete(participantId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBulkRegister = async () => {
+    if (selectedToRegister.size === 0) return;
+    const result = await addMultipleParticipations(Array.from(selectedToRegister), event.id);
+    addToast(`Successfully registered ${result.added} participants. ${result.skipped} were already registered.`, 'success');
+    setSelectedToRegister(new Set());
+    setSearchExisting('');
   };
 
   const handleCreateAndRegister = (participantData: Omit<Participant, 'id' | 'createdAt'>) => {
@@ -132,40 +144,49 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, parti
                 <h2 className="text-2xl font-bold">{event.title}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{event.date.toLocaleDateString()} • {event.location} • {event.category}</p>
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-                <Button variant="ghost" onClick={() => onEdit(event)}>Edit</Button>
-                {isSuperAdmin && <Button variant="danger" onClick={() => setIsConfirmDeleteOpen(true)}>Delete</Button>}
-            </div>
+            {canManageEvent && (
+                <div className="flex gap-2 flex-shrink-0">
+                    <Button variant="ghost" onClick={() => onEdit(event)}>Edit</Button>
+                    <Button variant="danger" onClick={() => setIsConfirmDeleteOpen(true)}>Delete</Button>
+                </div>
+            )}
         </div>
       </div>
       
       <div className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 overflow-y-auto">
         {/* Left Side: Add Participants */}
-        <div className="flex flex-col gap-4">
-            <h3 className="text-lg font-semibold">Add to Event</h3>
-            <div className="flex border-b dark:border-gray-700">
-                <button onClick={() => setActiveTab('register')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'register' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>Register Existing</button>
-                <button onClick={() => setActiveTab('create')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'create' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>Create & Register New</button>
-            </div>
-            {activeTab === 'register' ? (
-                <div className="space-y-3">
-                    <input type="text" placeholder="Search for participant..." value={searchExisting} onChange={e => setSearchExisting(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-900 dark:border-gray-600" />
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {searchExisting && availableToRegister.map(p => (
-                            <div key={p.id} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-900 rounded-md">
-                                <div>
-                                    <p className="font-medium text-sm">{p.name}</p>
-                                    <p className="text-xs text-gray-500">{p.institution}</p>
-                                </div>
-                                <Button size="sm" onClick={() => handleRegister(p.id)}>Add</Button>
-                            </div>
-                        ))}
-                    </div>
+        {canManageEvent ? (
+            <div className="flex flex-col gap-4">
+                <h3 className="text-lg font-semibold">Add to Event</h3>
+                <div className="flex border-b dark:border-gray-700">
+                    <button onClick={() => setActiveTab('register')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'register' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>Register Existing</button>
+                    <button onClick={() => setActiveTab('create')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'create' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>Create & Register New</button>
                 </div>
-            ) : (
-                <QuickAddParticipantForm onAdd={handleCreateAndRegister} />
-            )}
-        </div>
+                {activeTab === 'register' ? (
+                    <div className="space-y-3">
+                        <input type="text" placeholder="Search for participant..." value={searchExisting} onChange={e => setSearchExisting(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-900 dark:border-gray-600" />
+                        <div className="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-md p-2">
+                            {searchExisting && availableToRegister.length > 0 ? availableToRegister.map(p => (
+                                <div key={p.id} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-900 rounded-md">
+                                    <Checkbox
+                                        label={p.name}
+                                        checked={selectedToRegister.has(p.id)}
+                                        onChange={e => handleSelectForRegistration(p.id, e.target.checked)}
+                                    />
+                                </div>
+                            )) : (
+                                searchExisting && <p className="text-center text-sm text-gray-500 py-4">No participants found.</p>
+                            )}
+                        </div>
+                        <Button onClick={handleBulkRegister} disabled={selectedToRegister.size === 0} className="w-full">
+                            Register Selected ({selectedToRegister.size})
+                        </Button>
+                    </div>
+                ) : (
+                    <QuickAddParticipantForm onAdd={handleCreateAndRegister} />
+                )}
+            </div>
+        ) : <div />}
 
         {/* Right Side: Current Attendees */}
         <div className="flex flex-col gap-4">
@@ -178,7 +199,7 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, parti
                            <p className="font-medium text-sm">{p.name}</p>
                            <p className="text-xs text-gray-500">{p.institution}</p>
                         </div>
-                        <Button variant="danger" size="sm" onClick={() => handleUnregister(p.id, p.name)}>Remove</Button>
+                        {canManageEvent && <Button variant="danger" size="sm" onClick={() => handleUnregister(p.id, p.name)}>Remove</Button>}
                     </div>
                 )) : <p className="text-center text-sm text-gray-500 pt-8">No attendees registered yet.</p>}
             </div>
