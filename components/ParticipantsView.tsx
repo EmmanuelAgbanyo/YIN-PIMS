@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
@@ -10,14 +11,17 @@ import { Select } from './ui/Select';
 import { Checkbox } from './ui/Checkbox';
 import { Textarea } from './ui/Textarea';
 import { FormGroup } from './ui/FormGroup';
+import { ParticipantDetailPanel } from './ParticipantDetailPanel';
+import { MembershipCardModal } from './MembershipCardModal';
 
 type ParticipantsViewProps = Omit<ReturnType<typeof usePIMSData>, 'deleteParticipant'> & { 
     deleteParticipant: (id: UUID) => void,
     deleteMultipleParticipants: (ids: UUID[]) => void,
-    currentUserRole: UserRole 
+    currentUserRole: UserRole,
+    updateParticipantMembershipCardTimestamp: (id: UUID) => void;
 };
 
-const initialParticipantState: Omit<Participant, 'id' | 'createdAt'> = {
+const initialParticipantState: Omit<Participant, 'id' | 'createdAt' | 'membershipId'> = {
   name: '',
   gender: GENDERS[0],
   institution: '',
@@ -29,7 +33,7 @@ const initialParticipantState: Omit<Participant, 'id' | 'createdAt'> = {
 };
 
 const ParticipantForm: React.FC<{
-  onSubmit: (participant: Omit<Participant, 'id' | 'createdAt' >) => void;
+  onSubmit: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId' >) => void;
   initialData?: Participant | null;
   onClose: () => void;
 }> = ({ onSubmit, initialData, onClose }) => {
@@ -93,7 +97,7 @@ const ParticipantForm: React.FC<{
   );
 };
 
-export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants, addParticipant, updateParticipant, deleteParticipant, deleteMultipleParticipants, currentUserRole }) => {
+export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants, addParticipant, updateParticipant, deleteParticipant, deleteMultipleParticipants, currentUserRole, updateParticipantMembershipCardTimestamp }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -101,6 +105,8 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
   const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<UUID>>(new Set());
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [cardParticipant, setCardParticipant] = useState<Participant | null>(null);
   const addToast = useToast();
 
   const canManage = useMemo(() => ['Super Admin', 'Admin'].includes(currentUserRole), [currentUserRole]);
@@ -112,7 +118,6 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
     ).sort((a, b) => a.name.localeCompare(b.name));
   }, [participants, searchTerm]);
 
-  // Reset selection when filter changes
   useEffect(() => {
     setSelectedIds(new Set());
   }, [searchTerm]);
@@ -172,7 +177,7 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
     setIsConfirmBulkDeleteOpen(false);
   };
 
-  const handleFormSubmit = (data: Omit<Participant, 'id' | 'createdAt'>) => {
+  const handleFormSubmit = (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => {
     if (editingParticipant) {
       updateParticipant({ ...editingParticipant, ...data });
       addToast('Participant updated successfully!', 'success');
@@ -183,95 +188,152 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
     setIsModalOpen(false);
     setEditingParticipant(null);
   };
+
+  const handleGenerateCard = (participant: Participant) => {
+      setCardParticipant(participant);
+      updateParticipantMembershipCardTimestamp(participant.id);
+  };
   
   const allVisibleSelected = filteredParticipants.length > 0 && selectedIds.size === filteredParticipants.length;
   const isIndeterminate = selectedIds.size > 0 && !allVisibleSelected;
 
+  const handleRowClick = (participant: Participant) => {
+    setSelectedParticipant(participant);
+  };
+
+  const handlePanelClose = () => {
+    setSelectedParticipant(null);
+  };
+
+  // When selected participant data changes (e.g., photo update), refresh the panel
+  useEffect(() => {
+    if (selectedParticipant) {
+      const freshData = participants.find(p => p.id === selectedParticipant.id);
+      if (freshData) {
+        setSelectedParticipant(freshData);
+      } else {
+        // Participant was deleted, close panel
+        setSelectedParticipant(null);
+      }
+    }
+  }, [participants, selectedParticipant]);
+
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-       <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-        <h2 className="text-xl font-semibold">Participants ({filteredParticipants.length})</h2>
-        <div className="flex items-center gap-2">
-            <input type="text" placeholder="Search by name or institution..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="block w-full sm:w-64 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-            {canManage && selectedIds.size > 0 && (
-                <Button variant="danger" onClick={handleBulkDeleteRequest}>Delete Selected ({selectedIds.size})</Button>
-            )}
-            {canManage && <Button onClick={handleAdd}>Add Participant</Button>}
+    <div className="flex h-full gap-4 max-h-[calc(100vh-120px)]">
+      <div className={`transition-all duration-300 ease-in-out ${selectedParticipant ? 'w-full lg:w-2/3' : 'w-full'}`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full flex flex-col">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+            <h2 className="text-xl font-semibold">Participants ({filteredParticipants.length})</h2>
+            <div className="flex items-center gap-2">
+                <input type="text" placeholder="Search by name or institution..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="block w-full sm:w-64 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                {canManage && selectedIds.size > 0 && (
+                    <Button variant="danger" onClick={handleBulkDeleteRequest}>Delete Selected ({selectedIds.size})</Button>
+                )}
+                {canManage && <Button onClick={handleAdd}>Add Participant</Button>}
+            </div>
+          </div>
+          <div className="overflow-x-auto flex-1">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  {canManage && (
+                    <th className="px-4 py-3">
+                      <Checkbox 
+                        label=""
+                        checked={allVisibleSelected}
+                        indeterminate={isIndeterminate}
+                        onChange={handleSelectAll}
+                        disabled={filteredParticipants.length === 0}
+                      />
+                    </th>
+                  )}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institution</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engagement</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Membership Card</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredParticipants.length > 0 ? filteredParticipants.map(p => (
+                  <tr 
+                    key={p.id} 
+                    onClick={() => handleRowClick(p)}
+                    className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${selectedIds.has(p.id) ? 'bg-blue-50 dark:bg-blue-900/50' : ''} ${selectedParticipant?.id === p.id ? '!bg-primary/20' : ''}`}
+                  >
+                    {canManage && (
+                      <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                        <Checkbox 
+                            label=""
+                            checked={selectedIds.has(p.id)}
+                            onChange={() => handleSelectOne(p.id)}
+                          />
+                      </td>
+                    )}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{p.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{p.contact}</div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{p.institution}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {p.membershipStatus ? (
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                      ) : (
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Inactive</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${p.engagementScore && p.engagementScore >= 1 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
+                        {p.engagementScore} Events
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" onClick={() => handleGenerateCard(p)}>
+                            {p.lastMembershipCardGeneratedAt ? <RefreshIcon /> : <CardIcon />}
+                            Generate Card
+                        </Button>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2" onClick={e => e.stopPropagation()}>
+                        {canManage ? (
+                            <>
+                                <Button variant="ghost" size="sm" onClick={() => handleEditRequest(p)}>Edit</Button>
+                                <Button variant="danger" size="sm" onClick={() => handleDeleteRequest(p)}>Delete</Button>
+                            </>
+                        ) : (
+                            <span className="text-xs text-gray-400">No actions</span>
+                        )}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={canManage ? 7 : 6} className="text-center py-10 text-gray-500 dark:text-gray-400">
+                      No participants found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              {canManage && (
-                <th className="px-6 py-3">
-                  <Checkbox 
-                    label=""
-                    checked={allVisibleSelected}
-                    indeterminate={isIndeterminate}
-                    onChange={handleSelectAll}
-                    disabled={filteredParticipants.length === 0}
-                  />
-                </th>
-              )}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institution</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Region</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredParticipants.length > 0 ? filteredParticipants.map(p => (
-              <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${selectedIds.has(p.id) ? 'bg-blue-50 dark:bg-blue-900/50' : ''}`}>
-                {canManage && (
-                  <td className="px-6 py-4">
-                     <Checkbox 
-                        label=""
-                        checked={selectedIds.has(p.id)}
-                        onChange={() => handleSelectOne(p.id)}
-                      />
-                  </td>
-                )}
-                <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{p.name}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{p.contact}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{p.institution}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{p.region}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {p.membershipStatus ? (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
-                  ) : (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Inactive</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    {canManage ? (
-                        <>
-                            <Button variant="ghost" size="sm" onClick={() => handleEditRequest(p)}>Edit</Button>
-                            <Button variant="danger" size="sm" onClick={() => handleDeleteRequest(p)}>Delete</Button>
-                        </>
-                    ) : (
-                        <span className="text-xs text-gray-400">No actions</span>
-                    )}
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan={canManage ? 6 : 5} className="text-center py-10 text-gray-500 dark:text-gray-400">
-                  No participants found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
+       {selectedParticipant && (
+        <ParticipantDetailPanel 
+          participant={selectedParticipant} 
+          onClose={handlePanelClose}
+          updateParticipant={updateParticipant}
+        />
+      )}
        <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingParticipant(null); }} title={editingParticipant ? 'Edit Participant' : 'Create New Participant'}>
         <ParticipantForm onSubmit={handleFormSubmit} initialData={editingParticipant} onClose={() => { setIsModalOpen(false); setEditingParticipant(null); }} />
       </Modal>
-
+      {cardParticipant && (
+          <MembershipCardModal
+              participant={cardParticipant}
+              isOpen={!!cardParticipant}
+              onClose={() => setCardParticipant(null)}
+          />
+      )}
       <Modal isOpen={isConfirmDeleteOpen} onClose={() => setIsConfirmDeleteOpen(false)} title="Confirm Deletion">
         <div>
             <p>Are you sure you want to delete the participant "{participantToDelete?.name}"? This will also remove all their event registrations. This action cannot be undone.</p>
@@ -281,7 +343,6 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
             </div>
         </div>
       </Modal>
-
       <Modal isOpen={isConfirmBulkDeleteOpen} onClose={() => setIsConfirmBulkDeleteOpen(false)} title="Confirm Bulk Deletion">
         <div>
             <p>Are you sure you want to delete the {selectedIds.size} selected participants? This will also remove all their event registrations. This action cannot be undone.</p>
@@ -294,3 +355,6 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
     </div>
   );
 };
+
+const CardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>;
+const RefreshIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 12a8 8 0 10-8 8v5" /></svg>;

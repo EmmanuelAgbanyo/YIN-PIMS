@@ -12,7 +12,9 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "recharts": "^3.2.1",
-    "firebase": "^12.3.0"
+    "firebase": "^12.3.0",
+    "html-to-image": "^1.11.11",
+    "jsqr": "^1.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,3 +1,4 @@
+
 export type UUID = string;
 
 export enum Gender {
@@ -15,6 +16,16 @@ export enum Region {
   Central = 'Central',
 }
 
+export type UserRole = 'Super Admin' | 'Admin' | 'Organizer' | 'Viewer';
+
+export interface User {
+  id: UUID;
+  email: string;
+  password?: string; // For seed data, should not be exposed in app state
+  role: UserRole;
+  createdAt: Date;
+}
+
 export interface Participant {
   id: UUID;
   name: string;
@@ -26,6 +37,10 @@ export interface Participant {
   certificateIssued: boolean;
   notes: string;
   createdAt: Date;
+  membershipId: string;
+  engagementScore?: number;
+  lastMembershipCardGeneratedAt?: Date;
+  photoUrl?: string; // For membership card
 }
 
 export interface Event {
@@ -42,17 +57,12 @@ export interface Participation {
   eventId: UUID;
 }
 
-export interface User {
-  id: UUID;
-  email: string;
-  password: string; // In a real app, this would be a hash
-  role: UserRole;
-  createdAt: Date;
+export interface KPIs {
+  totalParticipants: number;
+  activeMembers: number;
+  totalEvents: number;
+  averageParticipationRate: number;
 }
-
-export type View = 'dashboard' | 'participants' | 'events' | 'registrations' | 'reports' | 'certificates' | 'settings' | 'profile';
-
-export type UserRole = 'Super Admin' | 'Admin' | 'Organizer' | 'Viewer';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -61,3 +71,14 @@ export interface ToastMessage {
   message: string;
   type: ToastType;
 }
+
+export type AppView =
+  | 'dashboard'
+  | 'participants'
+  | 'events'
+  | 'registrations'
+  | 'reports'
+  | 'certificates'
+  | 'verification'
+  | 'settings'
+  | 'profile';

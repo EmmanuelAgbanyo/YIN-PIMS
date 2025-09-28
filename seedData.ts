@@ -42,18 +42,24 @@ const participantNames = [
 const institutions = ['University of Ghana', 'KNUST', 'University of Cape Coast', 'Ashesi University', 'Accra Technical University'];
 const regions = Object.values(Region);
 
-export const seedParticipants: Participant[] = participantNames.map((name, index) => ({
-  id: `participant_${index + 1}`,
-  name,
-  gender: index % 3 === 0 ? Gender.Female : Gender.Male,
-  institution: institutions[index % institutions.length],
-  region: regions[index % regions.length],
-  contact: `+233 24 123 ${1000 + index}`,
-  membershipStatus: Math.random() > 0.2, // 80% are active
-  certificateIssued: false,
-  notes: `Sample note for ${name}.`,
-  createdAt: new Date(2023, index % 12, (index % 28) + 1),
-}));
+export const seedParticipants: Participant[] = participantNames.map((name, index) => {
+    const year = 2023 + Math.floor(index / 10); // Increment year for every 10 participants
+    const idInYear = (index % 10) + 1;
+    return {
+        id: `participant_${index + 1}`,
+        name,
+        gender: index % 3 === 0 ? Gender.Female : Gender.Male,
+        institution: institutions[index % institutions.length],
+        region: regions[index % regions.length],
+        contact: `+233 24 123 ${1000 + index}`,
+        membershipStatus: Math.random() > 0.2, // 80% are active
+        certificateIssued: false,
+        notes: `Sample note for ${name}.`,
+        createdAt: new Date(year, index % 12, (index % 28) + 1),
+        membershipId: `YIN-${year}-${String(idInYear).padStart(3, '0')}`,
+    };
+});
+
 
 // --- EVENTS ---
 export const seedEvents: Event[] = [

@@ -1,80 +1,88 @@
+
 import React from 'react';
-import type { View, UserRole } from '../types';
+import type { AppView, UserRole } from '../types';
 
 interface SidebarProps {
-  currentView: View;
-  setCurrentView: (view: View) => void;
-  isSidebarOpen: boolean;
+  currentView: AppView;
+  setCurrentView: (view: AppView) => void;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
   currentUserRole: UserRole;
 }
 
-const NavItem: React.FC<{
-  viewName: View;
-  label: string;
-  icon: React.ReactNode;
-  currentView: View;
-  setCurrentView: (view: View) => void;
-  isSidebarOpen: boolean;
-}> = ({ viewName, label, icon, currentView, setCurrentView, isSidebarOpen }) => {
-  const isActive = currentView === viewName;
+interface NavItem {
+    view: AppView;
+    label: string;
+    icon: React.ReactNode;
+    roles: UserRole[];
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isOpen, setIsOpen, currentUserRole }) => {
+
+    const navItems: NavItem[] = [
+        { view: 'dashboard', label: 'Dashboard', icon: <DashboardIcon />, roles: ['Super Admin', 'Admin', 'Organizer', 'Viewer'] },
+        { view: 'participants', label: 'Participants', icon: <UsersIcon />, roles: ['Super Admin', 'Admin', 'Organizer', 'Viewer'] },
+        { view: 'events', label: 'Events', icon: <CalendarIcon />, roles: ['Super Admin', 'Admin', 'Organizer', 'Viewer'] },
+        { view: 'registrations', label: 'Registrations', icon: <ClipboardListIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
+        { view: 'reports', label: 'Reports', icon: <ChartBarIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
+        { view: 'certificates', label: 'Certificates', icon: <AcademicCapIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
+        { view: 'verification', label: 'Verify Member', icon: <QRIcon />, roles: ['Super Admin', 'Admin', 'Organizer'] },
+        { view: 'settings', label: 'System Settings', icon: <CogIcon />, roles: ['Super Admin'] },
+    ];
+
+    const handleNavigation = (view: AppView) => {
+        setCurrentView(view);
+        if (window.innerWidth < 1024) {
+            setIsOpen(false);
+        }
+    };
+    
+    const visibleNavItems = navItems.filter(item => item.roles.includes(currentUserRole));
+
   return (
-    <li>
-      <button
-        onClick={() => setCurrentView(viewName)}
-        className={`flex items-center w-full p-3 my-1 rounded-lg transition-colors duration-200 ${
-          isActive
-            ? 'bg-primary text-white shadow-lg'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-        } ${!isSidebarOpen && 'justify-center'}`}
+    <>
+      <div
+        className={`fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden transition-opacity ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setIsOpen(false)}
+      ></div>
+      <aside
+        className={`absolute lg:relative inset-y-0 left-0 bg-white dark:bg-gray-800 w-64 transform transition-transform duration-300 ease-in-out z-40 lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        } border-r dark:border-gray-700 flex flex-col`}
       >
-        {icon}
-        <span className={`ml-3 font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'max-w-xs' : 'max-w-0 ml-0'}`}>
-          {label}
-        </span>
-      </button>
-    </li>
-  );
-};
-
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSidebarOpen, currentUserRole }) => {
-  return (
-    <div className={`flex-shrink-0 h-full flex flex-col bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
-      <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-        <span className={`ml-2 text-xl font-bold text-gray-800 dark:text-white whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'max-w-xs' : 'max-w-0'}`}>
-          YIN PIMS
-        </span>
-      </div>
-      <nav className={`flex-1 py-4 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'px-4' : 'px-2'}`}>
-        <ul>
-          <NavItem viewName="dashboard" label="Dashboard" icon={<DashboardIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          <NavItem viewName="participants" label="Participants" icon={<ParticipantsIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          <NavItem viewName="events" label="Events" icon={<EventsIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          <NavItem viewName="registrations" label="Registrations" icon={<RegistrationsIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          <NavItem viewName="reports" label="Reports" icon={<ReportsIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          <NavItem viewName="certificates" label="Certificates" icon={<CertificateIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          {currentUserRole === 'Super Admin' && (
-            <NavItem viewName="settings" label="User Management" icon={<SettingsIcon />} currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} />
-          )}
-        </ul>
-      </nav>
-      <div className="p-4 border-t dark:border-gray-700">
-        <div className={`text-xs text-center text-gray-500 overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'max-w-xs' : 'max-w-0'}`}>
-          <p className="whitespace-nowrap">© 2025 Young Investors Network</p>
-          <p className="whitespace-nowrap">Dev: Emmanuel Agbanyo</p>
+        <div className="flex items-center justify-center h-16 border-b dark:border-gray-700 px-4">
+          <h1 className="text-2xl font-bold text-primary">YIN PIMS</h1>
         </div>
-      </div>
-    </div>
+        <nav className="flex-1 px-4 py-6 space-y-2">
+            {visibleNavItems.map(({ view, label, icon }) => (
+                <button
+                    key={view}
+                    onClick={() => handleNavigation(view)}
+                    className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                        currentView === view
+                        ? 'bg-primary text-white'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {icon}
+                    <span className="ml-3">{label}</span>
+                </button>
+            ))}
+        </nav>
+      </aside>
+    </>
   );
 };
 
-// --- SVG Icons ---
-const DashboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
-const ParticipantsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197M15 21a6 6 0 006-5.197M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>;
-const EventsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-const RegistrationsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 012-2h3a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 5a2 2 0 00-2-2h-3a2 2 0 00-2 2v14a2 2 0 002 2h3a2 2 0 002-2V5z" /></svg>;
-const ReportsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
-const CertificateIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>;
-const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+// Icons
+const iconClass = "h-5 w-5";
+const DashboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>;
+const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0110 13v-2.267a5.002 5.002 0 015.69-4.949A5.002 5.002 0 0120 10v4a1 1 0 01-1 1h-4.07zM4.11 15.36A5 5 0 0110 13v-2.267a5.002 5.002 0 015.69-4.949A5.002 5.002 0 0120 10" /><path d="M4.11 15.36A5 5 0 010 10v-4a5.002 5.002 0 015.69-4.949A5.002 5.002 0 0110 5.733V8a5 5 0 01-5.89 4.36z" /></svg>;
+const CalendarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" /></svg>;
+const ClipboardListIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" /></svg>;
+const ChartBarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a1 1 0 001 1h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l3.293 3.293a1 1 0 001.414-1.414L13.414 12H16a1 1 0 001-1V5a1 1 0 00-1-1H3zm12 2v2h-2V5h2zM5 5h2v5H5V5zm4 0h2v3h-2V5z" clipRule="evenodd" /></svg>;
+const AcademicCapIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.042.822l-1.044 2.61a1 1 0 00.956 1.445l3.421-.855a.997.997 0 01.52.068l1.75 1.05a1 1 0 001.12.068l1.75-1.05a.997.997 0 01.52-.068l3.421.855a1 1 0 00.956-1.445l-1.044-2.61a.999.999 0 01.042-.822L17.394 6.92a1 1 0 000-1.84l-7-3zM10 8a1 1 0 100-2 1 1 0 000 2z" /><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path d="M10 15c-1.1 0-2 .9-2 2v1h4v-1c0-1.1-.9-2-2-2z" /></svg>;
+const QRIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V4h2v2H5zM3 10a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm2 2v-2h2v2H5zM10 4a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1h-2a1 1 0 01-1-1V4zm2 2V4h2v2h-2zM8 9a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1v-6a1 1 0 00-1-1H8zm6 6H9v-4h5v4zm-8-2a1 1 0 011-1h2a1 1 0 110 2H4a1 1 0 01-1-1zm14-2a1 1 0 100-2h-2a1 1 0 100 2h2z" clipRule="evenodd" /></svg>;
+const CogIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>;
