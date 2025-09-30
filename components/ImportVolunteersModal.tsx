@@ -68,7 +68,8 @@ export const ImportVolunteersModal: React.FC<ImportVolunteersModalProps> = ({ is
             // Fix: Explicitly typing the map to fix type inference issues within callbacks.
             const participantMap: Map<string, Participant> = new Map(participants.map(p => [`${p.name.toLowerCase()}_${p.contact.toLowerCase()}`, p]));
 
-            const validatedData = data.map(row => {
+            // Fix: Explicitly type the return value of the map callback to `PreviewRow` to resolve the TypeScript error where `status` was being inferred as a generic `string` instead of the specific `ImportStatus` union type.
+            const validatedData = data.map((row): PreviewRow => {
                 const name = row.Name?.trim();
                 const contact = row.Contact?.trim();
                 const role = row.Role?.trim();

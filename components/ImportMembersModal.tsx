@@ -59,7 +59,8 @@ export const ImportMembersModal: React.FC<ImportMembersModalProps> = ({ isOpen, 
             const data = await parseCsv(file);
             const clubMemberIds = new Set(clubMemberships.filter(cm => cm.clubId === club.id).map(cm => cm.participantId));
             
-            const validatedData = data.map(row => {
+            // Fix: Explicitly type the return value of the map callback to `PreviewRow` to resolve the TypeScript error where `status` was being inferred as a generic `string` instead of the specific `ImportStatus` union type.
+            const validatedData = data.map((row): PreviewRow => {
                 if (!row.Name || !row.Contact) {
                     return { data: row, status: 'Invalid Data', message: 'Missing Name or Contact' };
                 }

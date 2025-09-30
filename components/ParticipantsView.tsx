@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import type { Participant, UserRole, UUID, Club } from '../types';
+import type { Participant, UserRole, UUID, Club, Gender } from '../types';
 import { GENDERS, REGIONS, INSTITUTIONS } from '../constants';
 import { useToast } from '../hooks/useToast';
 import { Input } from './ui/Input';
@@ -13,12 +13,15 @@ import { Textarea } from './ui/Textarea';
 import { FormGroup } from './ui/FormGroup';
 import { ParticipantDetailPanel } from './ParticipantDetailPanel';
 import { MembershipCardModal } from './MembershipCardModal';
+import { ImportParticipantsModal } from './ImportParticipantsModal';
+import { ExportParticipantsModal } from './ExportParticipantsModal';
 
 type ParticipantsViewProps = Omit<ReturnType<typeof usePIMSData>, 'deleteParticipant'> & { 
     deleteParticipant: (id: UUID) => void,
     deleteMultipleParticipants: (ids: UUID[]) => void,
     currentUserRole: UserRole,
     updateParticipantMembershipCardTimestamp: (id: UUID) => void;
+    addMultipleParticipants: (participantsData: Omit<Participant, 'id' | 'createdAt' | 'membershipId' | 'engagementScore' | 'lastMembershipCardGeneratedAt' | 'photoUrl'>[]) => Promise<{ created: number }>;
 };
 
 const initialParticipantState: Omit<Participant, 'id' | 'createdAt' | 'membershipId'> = {
@@ -135,11 +138,13 @@ const ParticipantForm: React.FC<{
   );
 };
 
-export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants, addParticipant, updateParticipant, deleteParticipant, deleteMultipleParticipants, currentUserRole, updateParticipantMembershipCardTimestamp, clubs }) => {
+export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants, addParticipant, updateParticipant, deleteParticipant, deleteMultipleParticipants, currentUserRole, updateParticipantMembershipCardTimestamp, clubs, addMultipleParticipants }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<UUID>>(new Set());
@@ -262,11 +267,13 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full flex flex-col">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
             <h2 className="text-xl font-semibold">Participants ({filteredParticipants.length})</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
                 <input type="text" placeholder="Search by name or institution..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="block w-full sm:w-64 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                 {canManage && selectedIds.size > 0 && (
                     <Button variant="danger" onClick={handleBulkDeleteRequest}>Delete Selected ({selectedIds.size})</Button>
                 )}
+                <Button variant="ghost" onClick={() => setIsExportModalOpen(true)}><DownloadIcon />Export</Button>
+                {canManage && <Button variant="ghost" onClick={() => setIsImportModalOpen(true)}><UploadIcon/>Import</Button>}
                 {canManage && <Button onClick={handleAdd}>Add Participant</Button>}
             </div>
           </div>
@@ -372,6 +379,17 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
               onClose={() => setCardParticipant(null)}
           />
       )}
+      <ImportParticipantsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        participants={participants}
+        addMultipleParticipants={addMultipleParticipants}
+      />
+      <ExportParticipantsModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        participantsToExport={filteredParticipants}
+      />
       <Modal isOpen={isConfirmDeleteOpen} onClose={() => setIsConfirmDeleteOpen(false)} title="Confirm Deletion">
         <div>
             <p>Are you sure you want to delete the participant "{participantToDelete?.name}"? This will also remove all their event registrations and club memberships. This action cannot be undone.</p>
@@ -396,3 +414,5 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
 
 const CardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>;
 const RefreshIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 12a8 8 0 10-8 8v5" /></svg>;
+const UploadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0L8 8m4-4v12" /></svg>;
+const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;

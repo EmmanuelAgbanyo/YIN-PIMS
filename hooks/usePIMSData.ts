@@ -178,6 +178,31 @@ export const usePIMSData = () => {
     const preparedData = prepareDataForFirebase(updatedParticipant, ['createdAt', 'lastMembershipCardGeneratedAt']);
     await update(ref(db, `participants/${updatedParticipant.id}`), preparedData);
   }, []);
+  
+  const addMultipleParticipants = useCallback(async (participantsData: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>[]): Promise<{ created: number }> => {
+    const updates: { [key: string]: any } = {};
+    let createdCount = 0;
+
+    for (const data of participantsData) {
+        const newId = crypto.randomUUID();
+        const createdAt = new Date();
+        const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+        const newParticipant: Participant = {
+            ...data,
+            id: newId,
+            createdAt,
+            membershipId: `YIN-${createdAt.getFullYear()}-${randomSuffix}`,
+        };
+        updates[`/participants/${newId}`] = prepareDataForFirebase(newParticipant, ['createdAt']);
+        createdCount++;
+    }
+
+    if (Object.keys(updates).length > 0) {
+        await update(ref(db), updates);
+    }
+
+    return { created: createdCount };
+  }, []);
 
   const deleteParticipant = useCallback(async (id: UUID) => {
     const updates: { [key: string]: any } = {};
@@ -407,6 +432,7 @@ export const usePIMSData = () => {
     updateParticipant,
     deleteParticipant,
     deleteMultipleParticipants,
+    addMultipleParticipants,
     updateParticipantMembershipCardTimestamp,
     addEvent,
     updateEvent,
