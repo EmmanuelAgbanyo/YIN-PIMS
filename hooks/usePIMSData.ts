@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { ref, onValue, set, update, remove, push } from 'firebase/database';
 import { seedData } from '../seedData';
 import type { Participant, Event, Participation, User, UUID, KPIs, Club, ClubMembership, Volunteer, Activity } from '../types';
+import { getInstitutionCode } from '../utils/formatters';
 
 // --- HELPERS ---
 
@@ -156,14 +157,31 @@ export const usePIMSData = () => {
   const addParticipant = useCallback(async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID): Promise<Participant> => {
     const newId = crypto.randomUUID();
     const createdAt = new Date();
-    // To make IDs more consistent with seed data format, generate a random 4-digit number.
-    const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+    
+    // Generate institution-based unique membership ID
+    const institutionCode = getInstitutionCode(data.institution);
+    const year = createdAt.getFullYear();
+    const pattern = new RegExp(`^YIN-${institutionCode}-${year}-(\\d{4})$`);
+    let maxNumber = 0;
+    
+    participants.forEach(p => {
+        const match = p.membershipId.match(pattern);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNumber) {
+                maxNumber = num;
+            }
+        }
+    });
+
+    const newSequenceNumber = (maxNumber + 1).toString().padStart(4, '0');
+    const newMembershipId = `YIN-${institutionCode}-${year}-${newSequenceNumber}`;
 
     const newParticipant: Participant = {
       ...data,
       id: newId,
       createdAt,
-      membershipId: `YIN-${createdAt.getFullYear()}-${randomSuffix}`,
+      membershipId: newMembershipId,
     };
     await set(ref(db, `participants/${newId}`), prepareDataForFirebase(newParticipant, ['createdAt']));
     
@@ -172,7 +190,7 @@ export const usePIMSData = () => {
     }
     
     return newParticipant;
-  }, [addClubMembership]);
+  }, [addClubMembership, participants]);
 
   const updateParticipant = useCallback(async (updatedParticipant: Participant) => {
     const preparedData = prepareDataForFirebase(updatedParticipant, ['createdAt', 'lastMembershipCardGeneratedAt']);
@@ -182,16 +200,54 @@ export const usePIMSData = () => {
   const addMultipleParticipants = useCallback(async (participantsData: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>[]): Promise<{ created: number }> => {
     const updates: { [key: string]: any } = {};
     let createdCount = 0;
+    const createdAt = new Date();
+    const year = createdAt.getFullYear();
+
+    // Pre-calculate the starting sequence number for each institution in the batch
+    const sequenceCounters: { [key: string]: number } = {};
+    
+    // Group participants by institution code to find the starting sequence for each
+    const groupedByInstitution: { [key: string]: any[] } = {};
+    participantsData.forEach(p => {
+      const code = getInstitutionCode(p.institution);
+      if (!groupedByInstitution[code]) {
+        groupedByInstitution[code] = [];
+      }
+      groupedByInstitution[code].push(p);
+    });
+
+    // Find the max number for each institution from existing participants
+    Object.keys(groupedByInstitution).forEach(institutionCode => {
+      const key = `${institutionCode}-${year}`;
+      const pattern = new RegExp(`^YIN-${institutionCode}-${year}-(\\d{4})$`);
+      let maxNumber = 0;
+      participants.forEach(p => {
+          const match = p.membershipId.match(pattern);
+          if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNumber) {
+                  maxNumber = num;
+              }
+          }
+      });
+      sequenceCounters[key] = maxNumber;
+    });
 
     for (const data of participantsData) {
         const newId = crypto.randomUUID();
-        const createdAt = new Date();
-        const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+        
+        // Generate new ID using the pre-calculated and incremented counter
+        const institutionCode = getInstitutionCode(data.institution);
+        const key = `${institutionCode}-${year}`;
+        sequenceCounters[key]++; // Increment the counter for this institution
+        const newSequenceNumber = sequenceCounters[key].toString().padStart(4, '0');
+        const newMembershipId = `YIN-${institutionCode}-${year}-${newSequenceNumber}`;
+        
         const newParticipant: Participant = {
             ...data,
             id: newId,
             createdAt,
-            membershipId: `YIN-${createdAt.getFullYear()}-${randomSuffix}`,
+            membershipId: newMembershipId,
         };
         updates[`/participants/${newId}`] = prepareDataForFirebase(newParticipant, ['createdAt']);
         createdCount++;
@@ -202,7 +258,7 @@ export const usePIMSData = () => {
     }
 
     return { created: createdCount };
-  }, []);
+  }, [participants]);
 
   const deleteParticipant = useCallback(async (id: UUID) => {
     const updates: { [key: string]: any } = {};

@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
+import * as firebaseApp from "firebase/app";
 import { getDatabase } from "firebase/database";
-import { getAnalytics } from "firebase/analytics";
+import * as firebaseAnalytics from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,6 +15,8 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Fix: Use initializeApp from the imported namespace to correct the "no exported member" error.
+const app = firebaseApp.initializeApp(firebaseConfig);
 export const db = getDatabase(app);
-export const analytics = getAnalytics(app);
+// Fix: Use getAnalytics from the imported namespace to correct the "no exported member" error.
+export const analytics = firebaseAnalytics.getAnalytics(app);
