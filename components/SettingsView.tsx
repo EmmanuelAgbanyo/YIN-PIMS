@@ -1,6 +1,5 @@
-
 import React, { useState, useCallback } from 'react';
-import type { User, UserRole, UUID } from '../types';
+import type { User, UserRole, UUID, Club } from '../types';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
@@ -9,31 +8,45 @@ import { FormGroup } from './ui/FormGroup';
 import { useToast } from '../hooks/useToast';
 import { useAppSettings } from '../hooks/useAppSettings';
 
-// Super Admins can only be created via seed data, not assigned.
-const ASSIGNABLE_ROLES: UserRole[] = ['Admin', 'Organizer', 'Viewer'];
+const ASSIGNABLE_ROLES: UserRole[] = ['Admin', 'Organizer', 'Club Executive', 'Volunteer Coordinator', 'Viewer'];
 
 interface UserFormProps {
-  onSubmit: (formData: { email: string; password: string; role: string; }) => Promise<void>;
+  onSubmit: (formData: { email: string; password: string; role: string; assignedClubId: string; }) => Promise<void>;
   initialData?: User | null;
   onClose: () => void;
+  clubs: Club[];
 }
 
-const UserForm: React.FC<UserFormProps> = ({ onSubmit, initialData, onClose }) => {
+const UserForm: React.FC<UserFormProps> = ({ onSubmit, initialData, onClose, clubs }) => {
   const [formData, setFormData] = useState({
     email: initialData?.email || '',
     password: '',
     role: initialData?.role || 'Viewer',
+    assignedClubId: initialData?.assignedClubId || '',
   });
+  const addToast = useToast();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value as UserRole }));
+    setFormData(prev => {
+        const newState = { ...prev, [name]: value };
+        // If role is not Club Executive, clear the assigned club
+        if (name === 'role' && value !== 'Club Executive') {
+            newState.assignedClubId = '';
+        }
+        return newState;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!initialData && !formData.password) {
-      return; // Should be caught by 'required' attribute
+      addToast('Password is required for new users.', 'error');
+      return;
+    }
+    if (formData.role === 'Club Executive' && !formData.assignedClubId) {
+        addToast('Please assign a club to the Club Executive.', 'error');
+        return;
     }
     await onSubmit(formData);
     onClose();
@@ -70,6 +83,18 @@ const UserForm: React.FC<UserFormProps> = ({ onSubmit, initialData, onClose }) =
           ))}
         </Select>
       </FormGroup>
+
+      {formData.role === 'Club Executive' && (
+        <FormGroup>
+          <Select label="Assigned Club" name="assignedClubId" value={formData.assignedClubId} onChange={handleChange} required>
+            <option value="" disabled>Select a club...</option>
+            {clubs.sort((a,b) => a.name.localeCompare(b.name)).map(club => (
+              <option key={club.id} value={club.id}>{club.name}</option>
+            ))}
+          </Select>
+        </FormGroup>
+      )}
+
       <div className="flex justify-end space-x-2 pt-4">
         <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
         <Button type="submit">{initialData ? 'Update User' : 'Create User'}</Button>
@@ -148,13 +173,14 @@ const BrandingSettings: React.FC = () => {
 
 interface SettingsViewProps {
   users: User[];
+  clubs: Club[];
   currentUser: User;
   addUser: (data: Omit<User, 'id' | 'createdAt'>) => void;
   updateUser: (user: User) => void;
   deleteUser: (id: UUID) => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, addUser, updateUser, deleteUser }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ users, clubs, currentUser, addUser, updateUser, deleteUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -176,12 +202,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, 
     setIsConfirmDeleteOpen(true);
   };
   
-  const handleFormSubmit = async (formData: { email: string; password: string; role: string; }) => {
+  const handleFormSubmit = async (formData: { email: string; password: string; role: string; assignedClubId: string }) => {
+    const role = formData.role as UserRole;
     if (editingUser) {
       const updatedData: User = {
         ...editingUser,
-        role: formData.role as UserRole,
+        role: role,
         password: formData.password ? formData.password : editingUser.password,
+        assignedClubId: role === 'Club Executive' ? formData.assignedClubId : undefined,
       };
       await updateUser(updatedData);
       addToast(`User ${editingUser.email} updated successfully!`, 'success');
@@ -189,7 +217,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, 
       await addUser({
         email: formData.email,
         password: formData.password,
-        role: formData.role as UserRole,
+        role: role,
+        assignedClubId: role === 'Club Executive' ? formData.assignedClubId : undefined,
       });
       addToast(`User ${formData.email} created successfully!`, 'success');
     }
@@ -227,7 +256,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, 
                         {users.map(user => (
                             <tr key={user.id}>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{user.email}</td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{user.role}</td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                  {user.role}
+                                  {user.role === 'Club Executive' && user.assignedClubId && (
+                                    <span className="block text-xs text-gray-400">({clubs.find(c => c.id === user.assignedClubId)?.name || 'Unknown Club'})</span>
+                                  )}
+                                </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                     {user.id === currentUser.id ? (
                                       <span className="text-xs text-gray-400 italic">Current User (Cannot be modified)</span>
@@ -247,7 +281,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ users, currentUser, 
           <BrandingSettings />
       </div>
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Add New User'}>
-          <UserForm onSubmit={handleFormSubmit} initialData={editingUser} onClose={() => setIsModalOpen(false)} />
+          <UserForm onSubmit={handleFormSubmit} initialData={editingUser} onClose={() => setIsModalOpen(false)} clubs={clubs} />
       </Modal>
        <Modal isOpen={isConfirmDeleteOpen} onClose={() => setIsConfirmDeleteOpen(false)} title="Confirm Deletion">
         <div>

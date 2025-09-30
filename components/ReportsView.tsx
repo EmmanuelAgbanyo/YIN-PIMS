@@ -8,7 +8,7 @@ import { Select } from './ui/Select';
 import { Input } from './ui/Input';
 import { Checkbox } from './ui/Checkbox';
 import { FormGroup } from './ui/FormGroup';
-import { REGIONS, INSTITUTIONS } from '../constants';
+import { REGIONS } from '../constants';
 
 interface ReportsViewProps {
   participants: Participant[];
@@ -49,6 +49,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ participants, events, 
 
   // State for pagination
   const [currentPage, setCurrentPage] = useState(1);
+
+  const uniqueInstitutions = useMemo(() => Array.from(new Set(participants.map(p => p.institution))).sort(), [participants]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -155,7 +157,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ participants, events, 
            <FormGroup>
             <Select name="institution" label="Institution" value={filters.institution} onChange={handleFilterChange}>
               <option value="all">All Institutions</option>
-              {INSTITUTIONS.map(i => <option key={i} value={i}>{i}</option>)}
+              {uniqueInstitutions.map(i => <option key={i} value={i}>{i}</option>)}
             </Select>
           </FormGroup>
         </div>

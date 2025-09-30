@@ -12,6 +12,8 @@ const roleDisplay: Record<UserRole, string> = {
     'Super Admin': '👑 Super Admin',
     'Admin': '🛡️ Admin',
     'Organizer': '🎉 Organizer',
+    'Club Executive': '🧑‍💼 Club Executive',
+    'Volunteer Coordinator': '❤️ Volunteer Coordinator',
     'Viewer': '👁️ Viewer',
 };
 

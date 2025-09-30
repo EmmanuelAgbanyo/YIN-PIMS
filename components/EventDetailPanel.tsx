@@ -1,74 +1,111 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { useToast } from '../hooks/useToast';
-import type { Event, Participant, Participation, UserRole, UUID } from '../types';
+import type { Event, Participant, Participation, UserRole, UUID, Club } from '../types';
 import { Gender, Region } from '../types';
 import { INSTITUTIONS } from '../constants';
 import { Input } from './ui/Input';
 import { FormGroup } from './ui/FormGroup';
 import { Checkbox } from './ui/Checkbox';
+import { Select } from './ui/Select';
 
 type EventDetailPanelProps = {
   event: Event;
   participants: Participant[];
   participations: Participation[];
-  addParticipant: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => Promise<Participant>;
+  addParticipant: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID) => Promise<Participant>;
   addParticipation: (participantId: UUID, eventId: UUID) => Promise<boolean>;
   addMultipleParticipations: (participantIds: UUID[], eventId: UUID) => Promise<{ added: number, skipped: number }>;
   deleteParticipation: (participantId: UUID, eventId: UUID) => void;
   deleteEvent: (eventId: UUID) => void;
   onEdit: (event: Event) => void;
   currentUserRole: UserRole;
+  clubs: Club[];
 };
 
 const QuickAddParticipantForm: React.FC<{
-  onAdd: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => Promise<void>;
-}> = ({ onAdd }) => {
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
-  const [institution, setInstitution] = useState('');
+  onAdd: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID) => Promise<void>;
+  clubs: Club[];
+}> = ({ onAdd, clubs }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    contact: '',
+    institution: '',
+  });
+  const [joinClub, setJoinClub] = useState(false);
+  const [selectedClubId, setSelectedClubId] = useState<UUID>('');
+
+  const availableClubs = useMemo(() => {
+    if (!formData.institution) return [];
+    return clubs.filter(c => c.institution === formData.institution);
+  }, [clubs, formData.institution]);
+  
+  useEffect(() => {
+    if(availableClubs.length > 0) {
+      setSelectedClubId(availableClubs[0].id)
+    } else {
+      setSelectedClubId('')
+    }
+  }, [availableClubs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !contact || !institution) return;
+    if (!formData.name || !formData.contact || !formData.institution) return;
     await onAdd({
-      name,
-      contact,
-      institution,
+      ...formData,
       gender: Gender.Other,
-      region: Region.GreaterAccra,
+      region: Region.GreaterAccra, // Default region for quick add
       membershipStatus: true,
       certificateIssued: false,
       notes: 'Added via quick-add from event panel.',
-    });
-    setName('');
-    setContact('');
-    setInstitution('');
+    }, joinClub ? selectedClubId : undefined);
+    
+    // Reset form
+    setFormData({ name: '', contact: '', institution: '' });
+    setJoinClub(false);
+    setSelectedClubId('');
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <FormGroup>
-        <Input type="text" label="Full Name" value={name} onChange={e => setName(e.target.value)} required />
+        <Input type="text" label="Full Name" value={formData.name} onChange={e => setFormData(f => ({...f, name: e.target.value}))} required />
       </FormGroup>
       <FormGroup>
-        <Input type="text" label="Contact Info" value={contact} onChange={e => setContact(e.target.value)} required />
+        <Input type="text" label="Contact Info" value={formData.contact} onChange={e => setFormData(f => ({...f, contact: e.target.value}))} required />
       </FormGroup>
       <FormGroup>
-        <Input list="institutions" label="Institution" value={institution} onChange={e => setInstitution(e.target.value)} required />
+        <Input list="institutions" label="Institution" value={formData.institution} onChange={e => setFormData(f => ({...f, institution: e.target.value}))} required />
         <datalist id="institutions">
           {INSTITUTIONS.map(i => <option key={i} value={i} />)}
         </datalist>
       </FormGroup>
+
+       <div className="mt-4 p-4 border rounded-md dark:border-gray-700">
+          <FormGroup>
+              <Checkbox label="Enroll in YIN Club" name="joinClub" checked={joinClub} onChange={(e) => setJoinClub(e.target.checked)} />
+          </FormGroup>
+          {joinClub && (
+              <FormGroup>
+                  <Select label="Club" value={selectedClubId} onChange={(e) => setSelectedClubId(e.target.value)} disabled={availableClubs.length === 0}>
+                      {availableClubs.length > 0 ? (
+                        availableClubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                      ) : (
+                        <option>No clubs for this institution</option>
+                      )}
+                  </Select>
+              </FormGroup>
+          )}
+      </div>
+
       <Button type="submit" className="w-full !mt-6">Create & Register</Button>
     </form>
   );
 };
 
 
-export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, participants, participations, addParticipant, addParticipation, addMultipleParticipations, deleteParticipation, deleteEvent, onEdit, currentUserRole }) => {
+export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, participants, participations, addParticipant, addParticipation, addMultipleParticipations, deleteParticipation, deleteEvent, onEdit, currentUserRole, clubs }) => {
   const [activeTab, setActiveTab] = useState<'register' | 'create'>('register');
   const [searchExisting, setSearchExisting] = useState('');
   const [searchAttendees, setSearchAttendees] = useState('');
@@ -116,8 +153,8 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, parti
     setSearchExisting('');
   };
 
-  const handleCreateAndRegister = async (participantData: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => {
-    const newParticipant = await addParticipant(participantData);
+  const handleCreateAndRegister = async (participantData: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID) => {
+    const newParticipant = await addParticipant(participantData, clubId);
     if (newParticipant) {
       await addParticipation(newParticipant.id, event.id);
       addToast(`${newParticipant.name} created and registered!`, 'success');
@@ -184,7 +221,7 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({ event, parti
                         </Button>
                     </div>
                 ) : (
-                    <QuickAddParticipantForm onAdd={handleCreateAndRegister} />
+                    <QuickAddParticipantForm onAdd={handleCreateAndRegister} clubs={clubs} />
                 )}
             </div>
         ) : <div />}

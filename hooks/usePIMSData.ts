@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { db } from '../firebase';
 import { ref, onValue, set, update, remove, push } from 'firebase/database';
 import { seedData } from '../seedData';
-import type { Participant, Event, Participation, User, UUID, KPIs } from '../types';
+import type { Participant, Event, Participation, User, UUID, KPIs, Club, ClubMembership, Volunteer, Activity } from '../types';
 
 // --- HELPERS ---
 
@@ -21,7 +21,7 @@ const firebaseObjectToArray = <T>(data: any, dateFields: string[] = []): T[] => 
   });
 };
 
-// Helper to prepare data for Firebase: removes 'id' and converts Dates to ISO strings
+// Helper to prepare data for Firebase: removes 'id', undefined values, and converts Dates to ISO strings
 const prepareDataForFirebase = (data: any, dateFields: string[] = []) => {
     const cleanData = { ...data };
     delete cleanData.id; 
@@ -30,6 +30,14 @@ const prepareDataForFirebase = (data: any, dateFields: string[] = []) => {
             cleanData[field] = cleanData[field].toISOString();
         }
     });
+
+    // Firebase disallows `undefined` values. Remove any keys with an undefined value.
+    Object.keys(cleanData).forEach(key => {
+        if (cleanData[key] === undefined) {
+            delete cleanData[key];
+        }
+    });
+
     return cleanData;
 }
 
@@ -39,6 +47,11 @@ export const usePIMSData = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [participations, setParticipations] = useState<Participation[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [clubMemberships, setClubMemberships] = useState<ClubMembership[]>([]);
+  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+
 
   useEffect(() => {
     // --- SEED DATABASE IF EMPTY ---
@@ -50,11 +63,19 @@ export const usePIMSData = () => {
             seedData.users.forEach(u => { seedForFirebase[`users/${u.id}`] = prepareDataForFirebase(u, ['createdAt']); });
             seedData.participants.forEach(p => { seedForFirebase[`participants/${p.id}`] = prepareDataForFirebase(p, ['createdAt', 'lastMembershipCardGeneratedAt']); });
             seedData.events.forEach(e => { seedForFirebase[`events/${e.id}`] = prepareDataForFirebase(e, ['date']); });
-            // For participations, we use push to generate unique keys
+            seedData.clubs.forEach(c => { seedForFirebase[`clubs/${c.id}`] = prepareDataForFirebase(c, ['createdAt']); });
+            seedData.volunteers.forEach(v => { seedForFirebase[`volunteers/${v.id}`] = prepareDataForFirebase(v, ['startDate']); });
+            seedData.activities.forEach(a => { seedForFirebase[`activities/${a.id}`] = prepareDataForFirebase(a, ['date']); });
+            
             seedData.participations.forEach(p => { 
                 const newKey = push(ref(db, 'participations')).key;
                 if(newKey) seedForFirebase[`participations/${newKey}`] = p; 
             });
+            seedData.clubMemberships.forEach(cm => {
+                const newKey = push(ref(db, 'clubMemberships')).key;
+                if(newKey) seedForFirebase[`clubMemberships/${newKey}`] = prepareDataForFirebase(cm, ['joinDate']);
+            });
+
             update(dbRef, seedForFirebase);
         }
     }, { onlyOnce: true });
@@ -64,25 +85,41 @@ export const usePIMSData = () => {
     const eventsRef = ref(db, 'events');
     const participationsRef = ref(db, 'participations');
     const usersRef = ref(db, 'users');
+    const clubsRef = ref(db, 'clubs');
+    const clubMembershipsRef = ref(db, 'clubMemberships');
+    const volunteersRef = ref(db, 'volunteers');
+    const activitiesRef = ref(db, 'activities');
 
     const onParticipants = onValue(participantsRef, (snapshot) => {
-        // Fix: Explicitly cast the result to Participant[].
         setParticipants(firebaseObjectToArray<Participant>(snapshot.val(), ['createdAt', 'lastMembershipCardGeneratedAt']));
     });
 
     const onEvents = onValue(eventsRef, (snapshot) => {
-        // Fix: Explicitly cast the result to Event[].
         setEvents(firebaseObjectToArray<Event>(snapshot.val(), ['date']));
     });
 
     const onParticipations = onValue(participationsRef, (snapshot) => {
-        // Fix: Explicitly cast the result to Participation[].
         setParticipations(firebaseObjectToArray<Participation>(snapshot.val()));
     });
 
     const onUsers = onValue(usersRef, (snapshot) => {
-        // Fix: Explicitly cast the result to User[].
         setUsers(firebaseObjectToArray<User>(snapshot.val(), ['createdAt']));
+    });
+
+    const onClubs = onValue(clubsRef, (snapshot) => {
+        setClubs(firebaseObjectToArray<Club>(snapshot.val(), ['createdAt']));
+    });
+
+    const onClubMemberships = onValue(clubMembershipsRef, (snapshot) => {
+        setClubMemberships(firebaseObjectToArray<ClubMembership>(snapshot.val(), ['joinDate']));
+    });
+    
+    const onVolunteers = onValue(volunteersRef, (snapshot) => {
+        setVolunteers(firebaseObjectToArray<Volunteer>(snapshot.val(), ['startDate']));
+    });
+
+    const onActivities = onValue(activitiesRef, (snapshot) => {
+        setActivities(firebaseObjectToArray<Activity>(snapshot.val(), ['date']));
     });
 
     // --- CLEANUP LISTENERS ---
@@ -91,11 +128,32 @@ export const usePIMSData = () => {
       onEvents();
       onParticipations();
       onUsers();
+      onClubs();
+      onClubMemberships();
+      onVolunteers();
+      onActivities();
     };
   }, []);
   
+  // --- CLUB MEMBERSHIPS ---
+  const addClubMembership = useCallback(async (participantId: UUID, clubId: UUID): Promise<boolean> => {
+    const exists = clubMemberships.some(cm => cm.participantId === participantId && cm.clubId === clubId);
+    if (exists) {
+      return false;
+    }
+    await push(ref(db, 'clubMemberships'), { participantId, clubId, joinDate: new Date().toISOString() });
+    return true;
+  }, [clubMemberships]);
+  
+  const deleteClubMembership = useCallback(async (participantId: UUID, clubId: UUID) => {
+    const cmToDelete = clubMemberships.find(cm => cm.participantId === participantId && cm.clubId === clubId);
+    if (cmToDelete && cmToDelete.id) {
+        await remove(ref(db, `clubMemberships/${cmToDelete.id}`));
+    }
+  }, [clubMemberships]);
+
   // --- PARTICIPANTS ---
-  const addParticipant = useCallback(async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>): Promise<Participant> => {
+  const addParticipant = useCallback(async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID): Promise<Participant> => {
     const newId = crypto.randomUUID();
     const createdAt = new Date();
     // To make IDs more consistent with seed data format, generate a random 4-digit number.
@@ -108,8 +166,13 @@ export const usePIMSData = () => {
       membershipId: `YIN-${createdAt.getFullYear()}-${randomSuffix}`,
     };
     await set(ref(db, `participants/${newId}`), prepareDataForFirebase(newParticipant, ['createdAt']));
+    
+    if (clubId) {
+        await addClubMembership(newId, clubId);
+    }
+    
     return newParticipant;
-  }, []);
+  }, [addClubMembership]);
 
   const updateParticipant = useCallback(async (updatedParticipant: Participant) => {
     const preparedData = prepareDataForFirebase(updatedParticipant, ['createdAt', 'lastMembershipCardGeneratedAt']);
@@ -122,8 +185,20 @@ export const usePIMSData = () => {
     participations.filter(p => p.participantId === id).forEach(p => {
         if(p.id) updates[`/participations/${p.id}`] = null;
     });
+    clubMemberships.filter(cm => cm.participantId === id).forEach(cm => {
+        if(cm.id) updates[`/clubMemberships/${cm.id}`] = null;
+    });
+    // Also remove volunteer record if they are one
+    volunteers.filter(v => v.participantId === id).forEach(v => {
+        updates[`/volunteers/${v.id}`] = null;
+        // And their activities
+        activities.filter(a => a.volunteerId === v.id).forEach(a => {
+            updates[`/activities/${a.id}`] = null;
+        });
+    });
+
     await update(ref(db), updates);
-  }, [participations]);
+  }, [participations, clubMemberships, volunteers, activities]);
 
   const deleteMultipleParticipants = useCallback(async (ids: UUID[]) => {
     const updates: { [key: string]: any } = {};
@@ -134,8 +209,18 @@ export const usePIMSData = () => {
     participations.filter(p => idSet.has(p.participantId)).forEach(p => {
         if(p.id) updates[`/participations/${p.id}`] = null;
     });
+    clubMemberships.filter(cm => idSet.has(cm.participantId)).forEach(cm => {
+        if(cm.id) updates[`/clubMemberships/${cm.id}`] = null;
+    });
+    // Also handle volunteer records for bulk delete
+    volunteers.filter(v => idSet.has(v.participantId)).forEach(v => {
+        updates[`/volunteers/${v.id}`] = null;
+        activities.filter(a => a.volunteerId === v.id).forEach(a => {
+            updates[`/activities/${a.id}`] = null;
+        });
+    });
     await update(ref(db), updates);
-  }, [participations]);
+  }, [participations, clubMemberships, volunteers, activities]);
   
   const updateParticipantMembershipCardTimestamp = useCallback(async (id: UUID) => {
     await update(ref(db, `participants/${id}`), { lastMembershipCardGeneratedAt: new Date().toISOString() });
@@ -162,8 +247,12 @@ export const usePIMSData = () => {
     participations.filter(p => p.eventId === id).forEach(p => {
         if(p.id) updates[`/participations/${p.id}`] = null;
     });
+    // Unlink activities from deleted event
+    activities.filter(a => a.eventId === id).forEach(a => {
+        updates[`/activities/${a.id}/eventId`] = null;
+    });
     await update(ref(db), updates);
-  }, [participations]);
+  }, [participations, activities]);
 
   // --- PARTICIPATIONS ---
   const addParticipation = useCallback(async (participantId: UUID, eventId: UUID): Promise<boolean> => {
@@ -200,6 +289,31 @@ export const usePIMSData = () => {
     }
   }, [participations]);
 
+  // --- CLUBS ---
+  const addClub = useCallback(async (data: Omit<Club, 'id' | 'createdAt'>): Promise<Club> => {
+    const newId = crypto.randomUUID();
+    const newClub: Club = {
+      ...data,
+      id: newId,
+      createdAt: new Date(),
+    };
+    await set(ref(db, `clubs/${newId}`), prepareDataForFirebase(newClub, ['createdAt']));
+    return newClub;
+  }, []);
+
+  const updateClub = useCallback(async (updatedClub: Club) => {
+    await update(ref(db, `clubs/${updatedClub.id}`), prepareDataForFirebase(updatedClub, ['createdAt']));
+  }, []);
+  
+  const deleteClub = useCallback(async (id: UUID) => {
+    const updates: { [key: string]: any } = {};
+    updates[`/clubs/${id}`] = null;
+    clubMemberships.filter(cm => cm.clubId === id).forEach(cm => {
+        if(cm.id) updates[`/clubMemberships/${cm.id}`] = null;
+    });
+    await update(ref(db), updates);
+  }, [clubMemberships]);
+
   // --- USERS ---
   const addUser = useCallback(async (data: Omit<User, 'id' | 'createdAt'>) => {
     const newId = crypto.randomUUID();
@@ -218,6 +332,40 @@ export const usePIMSData = () => {
   const deleteUser = useCallback(async (id: UUID) => {
     await remove(ref(db, `users/${id}`));
   }, []);
+  
+  // --- VOLUNTEERS ---
+  const addVolunteer = useCallback(async (data: Omit<Volunteer, 'id'>) => {
+    const newId = crypto.randomUUID();
+    const newVolunteer: Volunteer = { ...data, id: newId };
+    await set(ref(db, `volunteers/${newId}`), prepareDataForFirebase(newVolunteer, ['startDate']));
+    return newVolunteer;
+  }, []);
+
+  const updateVolunteer = useCallback(async (updatedVolunteer: Volunteer) => {
+    await update(ref(db, `volunteers/${updatedVolunteer.id}`), prepareDataForFirebase(updatedVolunteer, ['startDate']));
+  }, []);
+
+  const deleteVolunteer = useCallback(async (id: UUID) => {
+    const updates: { [key: string]: any } = {};
+    updates[`/volunteers/${id}`] = null;
+    activities.filter(a => a.volunteerId === id).forEach(a => {
+        updates[`/activities/${a.id}`] = null;
+    });
+    await update(ref(db), updates);
+  }, [activities]);
+
+  // --- ACTIVITIES ---
+  const addActivity = useCallback(async (data: Omit<Activity, 'id'>) => {
+    const newId = crypto.randomUUID();
+    const newActivity: Activity = { ...data, id: newId };
+    await set(ref(db, `activities/${newId}`), prepareDataForFirebase(newActivity, ['date']));
+    return newActivity;
+  }, []);
+  
+  const deleteActivity = useCallback(async (id: UUID) => {
+    await remove(ref(db, `activities/${id}`));
+  }, []);
+
 
   // --- DERIVED STATE & KPIs ---
   const participantsWithEngagement = useMemo(() => {
@@ -250,6 +398,10 @@ export const usePIMSData = () => {
     events,
     participations,
     users,
+    clubs,
+    clubMemberships,
+    volunteers,
+    activities,
     kpis,
     addParticipant,
     updateParticipant,
@@ -265,5 +417,15 @@ export const usePIMSData = () => {
     addUser,
     updateUser,
     deleteUser,
+    addClub,
+    updateClub,
+    deleteClub,
+    addClubMembership,
+    deleteClubMembership,
+    addVolunteer,
+    updateVolunteer,
+    deleteVolunteer,
+    addActivity,
+    deleteActivity,
   };
 };

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { usePIMSData } from './hooks/usePIMSData';
 import { AppSettingsProvider } from './hooks/useAppSettings';
@@ -10,6 +9,8 @@ import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { ParticipantsView } from './components/ParticipantsView';
 import { EventsView } from './components/EventsView';
+import { ClubsView } from './components/ClubsView';
+import { VolunteersView } from './components/VolunteersView';
 import { RegistrationsView } from './components/RegistrationsView';
 import { ReportsView } from './components/ReportsView';
 import { CertificatesView } from './components/CertificatesView';
@@ -58,6 +59,10 @@ const PimsApp: React.FC = () => {
         return <ParticipantsView {...pimsData} currentUserRole={currentUser!.role} />;
       case 'events':
         return <EventsView {...pimsData} currentUserRole={currentUser!.role} />;
+      case 'clubs':
+        return <ClubsView {...pimsData} currentUser={currentUser!} />;
+      case 'volunteers':
+        return <VolunteersView {...pimsData} currentUser={currentUser!} />;
       case 'registrations':
         return <RegistrationsView {...pimsData} currentUserRole={currentUser!.role} />;
       case 'reports':
@@ -69,6 +74,7 @@ const PimsApp: React.FC = () => {
       case 'settings':
         return <SettingsView 
                   users={pimsData.users} 
+                  clubs={pimsData.clubs}
                   currentUser={currentUser!}
                   addUser={pimsData.addUser}
                   updateUser={pimsData.updateUser}

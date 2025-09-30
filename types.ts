@@ -1,4 +1,4 @@
-
+// Fix: Replaced circular import with direct type definition for UUID.
 export type UUID = string;
 
 export enum Gender {
@@ -16,7 +16,7 @@ export enum Region {
   Central = 'Central',
 }
 
-export type UserRole = 'Super Admin' | 'Admin' | 'Organizer' | 'Viewer';
+export type UserRole = 'Super Admin' | 'Admin' | 'Organizer' | 'Club Executive' | 'Volunteer Coordinator' | 'Viewer';
 
 export interface User {
   id: UUID;
@@ -24,6 +24,7 @@ export interface User {
   password?: string; // For seed data, should not be exposed in app state
   role: UserRole;
   createdAt: Date;
+  assignedClubId?: UUID;
 }
 
 export interface Participant {
@@ -58,6 +59,42 @@ export interface Participation {
   eventId: UUID;
 }
 
+export interface Club {
+  id: UUID;
+  name: string;
+  description: string;
+  institution: string;
+  createdAt: Date;
+}
+
+export interface ClubMembership {
+  id?: UUID; // Firebase key
+  participantId: UUID;
+  clubId: UUID;
+  joinDate: Date;
+}
+
+export type VolunteerRole = 'Event Staff' | 'Mentor' | 'Logistics' | 'Administrative' | 'Fundraising';
+export type VolunteerStatus = 'Active' | 'Inactive' | 'Pending';
+
+export interface Volunteer {
+    id: UUID;
+    participantId: UUID;
+    role: VolunteerRole;
+    status: VolunteerStatus;
+    startDate: Date;
+}
+
+export interface Activity {
+    id: UUID;
+    volunteerId: UUID; // Links to Volunteer.id
+    eventId?: UUID; // Optional, links to a specific event
+    description: string;
+    hours: number;
+    date: Date;
+}
+
+
 export interface KPIs {
   totalParticipants: number;
   activeMembers: number;
@@ -77,6 +114,8 @@ export type AppView =
   | 'dashboard'
   | 'participants'
   | 'events'
+  | 'clubs'
+  | 'volunteers'
   | 'registrations'
   | 'reports'
   | 'certificates'

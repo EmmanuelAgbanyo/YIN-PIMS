@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Card } from './ui/Card';
 import type { Region, Gender, Participant } from '../types';
-import { REGIONS, INSTITUTIONS } from '../constants';
+import { REGIONS } from '../constants';
 
 type DashboardProps = ReturnType<typeof usePIMSData>;
 
@@ -17,7 +17,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ participants, events, part
   // Fix: Used Number() to ensure values are numeric for sorting, preventing type errors.
   const years = useMemo(() => ['all', ...Array.from(new Set(events.map(e => e.year))).sort((a,b) => Number(b) - Number(a)).map(String)], [events]);
   const regions = useMemo(() => ['all', ...REGIONS], []);
-  const institutions = useMemo(() => ['all', ...INSTITUTIONS], []);
+  const institutions = useMemo(() => ['all', ...Array.from(new Set(participants.map(p => p.institution))).sort()], [participants]);
 
   const filteredData = useMemo(() => {
     let filteredParticipants = [...participants];

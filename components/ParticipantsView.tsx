@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import type { Participant, UserRole, UUID } from '../types';
+import type { Participant, UserRole, UUID, Club } from '../types';
 import { GENDERS, REGIONS, INSTITUTIONS } from '../constants';
 import { useToast } from '../hooks/useToast';
 import { Input } from './ui/Input';
@@ -33,14 +33,19 @@ const initialParticipantState: Omit<Participant, 'id' | 'createdAt' | 'membershi
 };
 
 const ParticipantForm: React.FC<{
-  onSubmit: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId' >) => Promise<void>;
+  onSubmit: (participant: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID) => Promise<void>;
   initialData?: Participant | null;
   onClose: () => void;
-}> = ({ onSubmit, initialData, onClose }) => {
+  clubs: Club[];
+}> = ({ onSubmit, initialData, onClose, clubs }) => {
   const [formData, setFormData] = useState(initialData || initialParticipantState);
+  const [joinClub, setJoinClub] = useState(false);
+  const [selectedClubId, setSelectedClubId] = useState<UUID>('');
 
   useEffect(() => {
     setFormData(initialData || initialParticipantState);
+    setJoinClub(false);
+    setSelectedClubId('');
   }, [initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -54,9 +59,22 @@ const ParticipantForm: React.FC<{
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+    await onSubmit(formData, joinClub ? selectedClubId : undefined);
     onClose();
   };
+  
+  const availableClubs = useMemo(() => {
+    if (!formData.institution) return [];
+    return clubs.filter(c => c.institution === formData.institution);
+  }, [clubs, formData.institution]);
+  
+  useEffect(() => {
+    if(availableClubs.length > 0) {
+      setSelectedClubId(availableClubs[0].id)
+    } else {
+      setSelectedClubId('')
+    }
+  }, [availableClubs]);
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
@@ -85,10 +103,30 @@ const ParticipantForm: React.FC<{
       <FormGroup className="md:col-span-2">
         <Textarea label="Notes" name="notes" value={formData.notes} onChange={handleChange} rows={3} />
       </FormGroup>
-       <FormGroup className="flex items-center gap-4 md:col-span-2">
+      <FormGroup className="flex items-center gap-4">
           <Checkbox name="membershipStatus" label="Active Member" checked={formData.membershipStatus} onChange={handleChange} />
           <Checkbox name="certificateIssued" label="Certificate Issued" checked={formData.certificateIssued} onChange={handleChange} />
       </FormGroup>
+      
+       {!initialData && (
+        <div className="md:col-span-2 mt-4 p-4 border rounded-md dark:border-gray-700">
+            <FormGroup>
+                <Checkbox label="Join a YIN Club" name="joinClub" checked={joinClub} onChange={(e) => setJoinClub(e.target.checked)} />
+            </FormGroup>
+            {joinClub && (
+                <FormGroup>
+                    <Select label="Club" value={selectedClubId} onChange={(e) => setSelectedClubId(e.target.value)}>
+                        {availableClubs.length > 0 ? (
+                          availableClubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                        ) : (
+                          <option disabled>No clubs for this institution</option>
+                        )}
+                    </Select>
+                </FormGroup>
+            )}
+        </div>
+      )}
+
       <div className="md:col-span-2 flex justify-end space-x-2 pt-6">
         <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
         <Button type="submit">{initialData ? 'Update Participant' : 'Create Participant'}</Button>
@@ -97,7 +135,7 @@ const ParticipantForm: React.FC<{
   );
 };
 
-export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants, addParticipant, updateParticipant, deleteParticipant, deleteMultipleParticipants, currentUserRole, updateParticipantMembershipCardTimestamp }) => {
+export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants, addParticipant, updateParticipant, deleteParticipant, deleteMultipleParticipants, currentUserRole, updateParticipantMembershipCardTimestamp, clubs }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -177,12 +215,12 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
     setIsConfirmBulkDeleteOpen(false);
   };
 
-  const handleFormSubmit = async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>) => {
+  const handleFormSubmit = async (data: Omit<Participant, 'id' | 'createdAt' | 'membershipId'>, clubId?: UUID) => {
     if (editingParticipant) {
       await updateParticipant({ ...editingParticipant, ...data });
       addToast('Participant updated successfully!', 'success');
     } else {
-      await addParticipant(data);
+      await addParticipant(data, clubId);
       addToast('Participant created successfully!', 'success');
     }
     setIsModalOpen(false);
@@ -325,7 +363,7 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
         />
       )}
        <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingParticipant(null); }} title={editingParticipant ? 'Edit Participant' : 'Create New Participant'}>
-        <ParticipantForm onSubmit={handleFormSubmit} initialData={editingParticipant} onClose={() => { setIsModalOpen(false); setEditingParticipant(null); }} />
+        <ParticipantForm onSubmit={handleFormSubmit} initialData={editingParticipant} onClose={() => { setIsModalOpen(false); setEditingParticipant(null); }} clubs={clubs} />
       </Modal>
       {cardParticipant && (
           <MembershipCardModal
@@ -336,7 +374,7 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
       )}
       <Modal isOpen={isConfirmDeleteOpen} onClose={() => setIsConfirmDeleteOpen(false)} title="Confirm Deletion">
         <div>
-            <p>Are you sure you want to delete the participant "{participantToDelete?.name}"? This will also remove all their event registrations. This action cannot be undone.</p>
+            <p>Are you sure you want to delete the participant "{participantToDelete?.name}"? This will also remove all their event registrations and club memberships. This action cannot be undone.</p>
             <div className="flex justify-end gap-2 mt-4">
                 <Button variant="ghost" onClick={() => setIsConfirmDeleteOpen(false)}>Cancel</Button>
                 <Button variant="danger" onClick={confirmDelete}>Delete</Button>
@@ -345,7 +383,7 @@ export const ParticipantsView: React.FC<ParticipantsViewProps> = ({ participants
       </Modal>
       <Modal isOpen={isConfirmBulkDeleteOpen} onClose={() => setIsConfirmBulkDeleteOpen(false)} title="Confirm Bulk Deletion">
         <div>
-            <p>Are you sure you want to delete the {selectedIds.size} selected participants? This will also remove all their event registrations. This action cannot be undone.</p>
+            <p>Are you sure you want to delete the {selectedIds.size} selected participants? This will also remove all their event registrations and club memberships. This action cannot be undone.</p>
             <div className="flex justify-end gap-2 mt-4">
                 <Button variant="ghost" onClick={() => setIsConfirmBulkDeleteOpen(false)}>Cancel</Button>
                 <Button variant="danger" onClick={confirmBulkDelete}>Delete Selected</Button>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { usePIMSData } from '../hooks/usePIMSData';
 import { Button } from './ui/Button';
@@ -92,7 +93,7 @@ export const EventsView: React.FC<EventsViewProps> = (props) => {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const addToast = useToast();
   
-  const canCreate = currentUserRole !== 'Viewer';
+  const canCreate = ['Super Admin', 'Admin', 'Organizer'].includes(currentUserRole);
 
   useEffect(() => {
     if (!selectedEvent && events.length > 0) {
